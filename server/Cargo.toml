@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.5.0", features = ["derive"] }
 color-eyre = "0.6.2"
+console-subscriber = "0.2.0"
 redis = "0.24.0"
 rmp-serde = "1.1.2"
 serde = { version = "1.0.196", features = ["derive"] }

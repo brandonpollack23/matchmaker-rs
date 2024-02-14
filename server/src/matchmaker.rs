@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use color_eyre::Result;
@@ -22,7 +23,7 @@ type MatchmakeResponder = oneshot::Sender<Option<Vec<User>>>;
 
 pub async fn matchmaker(
   join_match_rx: mpsc::UnboundedReceiver<JoinMatchRequest>,
-  game_server_service: Box<dyn GameServerService>,
+  game_server_service: Arc<dyn GameServerService>,
   match_size: u32,
 ) -> Result<()> {
   let (request_game_tx, request_game_rx) = tokio::sync::mpsc::channel::<MatchmakeResponder>(1);
@@ -82,25 +83,31 @@ async fn user_aggregator(
 #[instrument]
 async fn matchmaker_loop(
   request_game_tx: mpsc::Sender<MatchmakeResponder>,
-  game_server_service: Box<dyn GameServerService>,
+  game_server_service: Arc<dyn GameServerService>,
 ) -> Result<()> {
   loop {
-    let span = span!(Level::INFO, "matchmaker loop iteration").entered();
-
-    let (tx, rx) = oneshot::channel();
-
-    if let Err(e) = request_game_tx.send(tx).await {
-      error!("failed to send matchmaking request request: {:?}", e);
-    }
-
-    let users = rx.await;
-    if let Err(e) = users {
-      error!("failed to receive users from matchmaking service: {:?}", e);
-    }
-
-    span.exit();
+    matchmaker_iteration(request_game_tx.clone(), game_server_service.clone()).await?;
     tokio::time::sleep(Duration::from_secs(1)).await;
   }
+}
+
+#[instrument]
+async fn matchmaker_iteration(
+  request_game_tx: mpsc::Sender<MatchmakeResponder>,
+  game_server_service: Arc<dyn GameServerService>,
+) -> Result<()> {
+  let (tx, rx) = oneshot::channel();
+
+  if let Err(e) = request_game_tx.send(tx).await {
+    error!("failed to send matchmaking request request: {:?}", e);
+  }
+
+  let users = rx.await;
+  if let Err(e) = users {
+    error!("failed to receive users from matchmaking service: {:?}", e);
+  }
+
+  // TODO do "matchmaking"
 
   Ok(())
 }

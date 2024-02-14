@@ -7,8 +7,10 @@ use tokio::{
   net::{TcpListener, TcpStream},
   sync::mpsc::UnboundedSender,
 };
-use tracing::{error, Instrument};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
+use tracing::{error, instrument, Instrument};
+use tracing_subscriber::{
+  fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt, Layer,
+};
 
 mod game_server_service;
 mod matchmaker;
@@ -20,7 +22,7 @@ mod protocol;
 
 // TODO Docs: clap explanation string
 
-#[derive(clap::Parser)]
+#[derive(clap::Parser, Debug)]
 #[command(
   name = "matchmaker-rs",
   version = "0.1.0",
@@ -48,15 +50,23 @@ async fn main() {
 
   // Setup tracing.
   tracing_subscriber::registry()
-    .with(tracing_subscriber::fmt::layer().with_filter(
-      tracing_subscriber::filter::LevelFilter::from_level(args.print_log_level),
-    ))
+    .with(
+      tracing_subscriber::fmt::layer()
+        .compact()
+        .with_file(true)
+        .with_line_number(true)
+        .with_filter(tracing_subscriber::filter::LevelFilter::from_level(
+          args.print_log_level,
+        )),
+    )
+    .with(console_subscriber::spawn())
     .init();
 
   // Run the server.
   run_server(&args).await.unwrap();
 }
 
+#[instrument]
 async fn run_server(args: &Cli) -> Result<()> {
   let listener = TcpListener::bind(format!("127.0.0.1:{}", args.port))
     .await
