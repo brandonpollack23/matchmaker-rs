@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+// TODO NOW this and all serializable stuff should be moved to a shared crate.
+
 /// Wire Protocol messages.
 #[derive(Serialize, Deserialize, Debug)]
 pub enum MatchmakeProtocolMessage {

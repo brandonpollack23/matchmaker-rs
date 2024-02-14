@@ -1,3 +1,6 @@
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -6,23 +9,24 @@ use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
 use tracing::error;
+use tracing::info;
 use tracing::instrument;
 use tracing::span;
 use tracing::Level;
 
+use crate::game_server_service::GameServer;
 use crate::game_server_service::GameServerService;
 use crate::protocol::JoinMatchRequest;
-use crate::protocol::User;
 
 // TODO Feature: SBMM (Skill Based Match Making), depending on skill level sort
 // into different buckets.  With backoff, expand range of adjacent bucket search
 // of each skill bucket to try to find games if no games are found in the
 // current bucket.
 
-type MatchmakeResponder = oneshot::Sender<Option<Vec<User>>>;
+type MatchmakeResponder = oneshot::Sender<Option<Vec<JoinMatchRequestWithReply>>>;
 
 pub async fn matchmaker(
-  join_match_rx: mpsc::UnboundedReceiver<JoinMatchRequest>,
+  join_match_rx: mpsc::UnboundedReceiver<JoinMatchRequestWithReply>,
   game_server_service: Arc<dyn GameServerService>,
   match_size: u32,
 ) -> Result<()> {
@@ -45,11 +49,11 @@ pub async fn matchmaker(
 
 #[instrument]
 async fn user_aggregator(
-  mut join_match_rx: mpsc::UnboundedReceiver<JoinMatchRequest>,
+  mut join_match_rx: mpsc::UnboundedReceiver<JoinMatchRequestWithReply>,
   mut request_game_rx: mpsc::Receiver<MatchmakeResponder>,
   match_size: u32,
 ) -> Result<()> {
-  let mut matchmake_requests: Vec<User> = Vec::new();
+  let mut matchmake_requests: Vec<JoinMatchRequestWithReply> = Vec::new();
 
   loop {
     tokio::select! {
@@ -57,11 +61,11 @@ async fn user_aggregator(
         let _span = span!(
           Level::INFO,
           "matchmake request insertion",
-          ?join_match_request
+          ?join_match_request.request
         )
         .entered();
 
-        matchmake_requests.push(join_match_request.user)
+        matchmake_requests.push(join_match_request)
       },
 
       Some(chan) = request_game_rx.recv() => {
@@ -86,7 +90,11 @@ async fn matchmaker_loop(
   game_server_service: Arc<dyn GameServerService>,
 ) -> Result<()> {
   loop {
-    matchmaker_iteration(request_game_tx.clone(), game_server_service.clone()).await?;
+    if let Err(e) = matchmaker_iteration(request_game_tx.clone(), game_server_service.clone()).await
+    {
+      error!("failed to receive users from matchmaking service: {:?}", e);
+    }
+
     tokio::time::sleep(Duration::from_secs(1)).await;
   }
 }
@@ -102,12 +110,30 @@ async fn matchmaker_iteration(
     error!("failed to send matchmaking request request: {:?}", e);
   }
 
-  let users = rx.await;
-  if let Err(e) = users {
-    error!("failed to receive users from matchmaking service: {:?}", e);
+  let users = rx.await?;
+
+  if users.is_none() {
+    info!("Not enough users to match yet, retrying...");
+    return Ok(());
   }
 
-  // TODO do "matchmaking"
+  let game_server = game_server_service.acquire_game_server()?;
+  for user in users.unwrap().into_iter() {
+    user.tx.send(game_server.clone()).unwrap();
+  }
 
   Ok(())
+}
+
+pub struct JoinMatchRequestWithReply {
+  pub request: JoinMatchRequest,
+  pub tx: oneshot::Sender<GameServer>,
+}
+
+impl Debug for JoinMatchRequestWithReply {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    f.debug_struct("JoinMatchRequestWithReply")
+      .field("request", &self.request)
+      .finish()
+  }
 }

@@ -1,14 +1,19 @@
 use clap::Parser;
 use color_eyre::Result;
-use game_server_service::GameServerServiceTypes;
-use protocol::{JoinMatchRequest, MatchmakeProtocolMessage};
+use game_server_service::{GameServer, GameServerServiceTypes};
+use protocol::MatchmakeProtocolMessage;
 use tokio::{
-  io::AsyncReadExt,
+  io::{AsyncReadExt, AsyncWriteExt},
   net::{TcpListener, TcpStream},
-  sync::mpsc::UnboundedSender,
+  sync::{
+    mpsc::{self, UnboundedSender},
+    oneshot,
+  },
 };
 use tracing::{error, instrument, Instrument};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
+
+use crate::matchmaker::JoinMatchRequestWithReply;
 
 mod game_server_service;
 mod matchmaker;
@@ -35,7 +40,7 @@ struct Cli {
   game_server_service: GameServerServiceTypes,
   #[arg(short, long, default_value = "60")]
   match_size: u32,
-  /// Enable the tokio console (see https://github.com/tokio-rs/console)
+  /// Enable the tokio console (see <https://github.com/tokio-rs/console>)
   #[arg(short, long, default_value = "false")]
   tokio_console: bool,
 }
@@ -80,7 +85,7 @@ async fn run_server(args: &Cli) -> Result<()> {
     .unwrap();
 
   // TODO EXTRA: parallelize this with a tokio::select! macro and a concurrent vector and benchmark.
-  let (join_match_tx, join_match_rx) = tokio::sync::mpsc::unbounded_channel::<JoinMatchRequest>();
+  let (join_match_tx, join_match_rx) = mpsc::unbounded_channel::<JoinMatchRequestWithReply>();
 
   let game_server_service = game_server_service::from_type(&args.game_server_service);
 
@@ -105,7 +110,7 @@ async fn run_server(args: &Cli) -> Result<()> {
 
 async fn listen_handler(
   listener: TcpListener,
-  join_match_tx: UnboundedSender<JoinMatchRequest>,
+  join_match_tx: UnboundedSender<JoinMatchRequestWithReply>,
 ) -> Result<()> {
   loop {
     let (socket, addr) = listener.accept().await.unwrap();
@@ -128,29 +133,34 @@ async fn listen_handler(
 /// Handle client connection.
 /// The protocol is byte based.
 /// 4 bytes - payload length N -- this gives us a max length of 4GB
-/// N bytes - payload in the form of a MessagePack object TODO consider changing to typesafe language agnostic.
+/// N bytes - payload in the form of a MessagePack object TODO consider changing to typesafe language agnostic like protobufs or flatpaks or avro.
 async fn handle_client_connection(
-  socket: TcpStream,
-  join_match_tx: &UnboundedSender<JoinMatchRequest>,
+  mut socket: TcpStream,
+  join_match_tx: &UnboundedSender<JoinMatchRequestWithReply>,
 ) -> Result<()> {
-  let mut socket_buffered = tokio::io::BufReader::new(socket);
-
   loop {
-    let size = socket_buffered.read_u32().await?;
+    let size = socket.read_u32().await?;
     let mut buffer = Vec::with_capacity(size as usize);
-    socket_buffered.read_exact(&mut buffer).await?;
+    socket.read_exact(&mut buffer).await?;
     let message: MatchmakeProtocolMessage = rmp_serde::from_slice(&buffer)?;
-    handle_message(message, join_match_tx).await?;
+    handle_message(message, &mut socket, join_match_tx).await?;
   }
 }
 
 async fn handle_message(
   message: MatchmakeProtocolMessage,
-  join_match_tx: &UnboundedSender<JoinMatchRequest>,
+  socket: &mut TcpStream,
+  join_match_tx: &UnboundedSender<JoinMatchRequestWithReply>,
 ) -> Result<()> {
   match message {
-    MatchmakeProtocolMessage::JoinMatch(req) => {
-      join_match_tx.send(req)?;
+    MatchmakeProtocolMessage::JoinMatch(request) => {
+      let (tx, rx) = oneshot::channel::<GameServer>();
+      let req_with_sock = JoinMatchRequestWithReply { request, tx };
+      join_match_tx.send(req_with_sock)?;
+
+      let server = rx.await?;
+      // rmp_serde::encode::write(socket, &server)?;
+      socket.write_all(&rmp_serde::to_vec(&server)?).await?;
     }
   }
 
