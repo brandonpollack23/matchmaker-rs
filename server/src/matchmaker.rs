@@ -1,14 +1,15 @@
+use std::time::Duration;
+
 use color_eyre::Result;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
 use tracing::error;
 use tracing::instrument;
-
 use tracing::span;
-
 use tracing::Level;
 
+use crate::game_server_service::GameServerService;
 use crate::protocol::JoinMatchRequest;
 use crate::protocol::User;
 
@@ -21,12 +22,13 @@ type MatchmakeResponder = oneshot::Sender<Option<Vec<User>>>;
 
 pub async fn matchmaker(
   join_match_rx: mpsc::UnboundedReceiver<JoinMatchRequest>,
+  game_server_service: Box<dyn GameServerService>,
   match_size: u32,
 ) -> Result<()> {
   let (request_game_tx, request_game_rx) = tokio::sync::mpsc::channel::<MatchmakeResponder>(1);
 
   let user_aggregator = tokio::spawn(user_aggregator(join_match_rx, request_game_rx, match_size));
-  let matchmaker = tokio::spawn(matchmaker_loop(request_game_tx));
+  let matchmaker = tokio::spawn(matchmaker_loop(request_game_tx, game_server_service));
 
   tokio::select! {
     r = user_aggregator => {
@@ -78,18 +80,27 @@ async fn user_aggregator(
 }
 
 #[instrument]
-async fn matchmaker_loop(request_game_tx: mpsc::Sender<MatchmakeResponder>) -> Result<()> {
-  let (tx, rx) = oneshot::channel();
+async fn matchmaker_loop(
+  request_game_tx: mpsc::Sender<MatchmakeResponder>,
+  game_server_service: Box<dyn GameServerService>,
+) -> Result<()> {
+  loop {
+    let span = span!(Level::INFO, "matchmaker loop iteration").entered();
 
-  if let Err(e) = request_game_tx.send(tx).await {
-    error!("failed to send matchmaking request request: {:?}", e);
+    let (tx, rx) = oneshot::channel();
+
+    if let Err(e) = request_game_tx.send(tx).await {
+      error!("failed to send matchmaking request request: {:?}", e);
+    }
+
+    let users = rx.await;
+    if let Err(e) = users {
+      error!("failed to receive users from matchmaking service: {:?}", e);
+    }
+
+    span.exit();
+    tokio::time::sleep(Duration::from_secs(1)).await;
   }
 
-  let users = rx.await;
-  if let Err(e) = users {
-    error!("failed to receive users from matchmaking service: {:?}", e);
-  }
-
-  // TODO MAIN GOAL: Create a "game server" and send it to each user, this can simply be behind a polymorphic trait.
   Ok(())
 }

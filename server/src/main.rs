@@ -1,5 +1,6 @@
 use clap::Parser;
 use color_eyre::Result;
+use game_server_service::GameServerServiceTypes;
 use protocol::{JoinMatchRequest, MatchmakeProtocolMessage};
 use tokio::{
   io::AsyncReadExt,
@@ -9,6 +10,7 @@ use tokio::{
 use tracing::{error, Instrument};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 
+mod game_server_service;
 mod matchmaker;
 mod protocol;
 
@@ -16,12 +18,21 @@ mod protocol;
 // TODO MAIN GOALS: trace with tracy, OTel/Jaeger, Chrome/Perfetto.
 // TODO MAIN GOALS: redis distributed feature version and docker compose to stand up.
 
+// TODO Docs: clap explanation string
+
 #[derive(clap::Parser)]
+#[command(
+  name = "matchmaker-rs",
+  version = "0.1.0",
+  about = "Matchmaker server experiment, see the readme i guess if it exists."
+)]
 struct Cli {
   #[arg(short = 'l', long, default_value = "info")]
   print_log_level: tracing::Level,
   #[arg(short, long, default_value = "1337")]
   port: u16,
+  #[arg(long, default_value = "test")]
+  game_server_service: GameServerServiceTypes,
   #[arg(short, long, default_value = "60")]
   match_size: u32,
 }
@@ -54,7 +65,13 @@ async fn run_server(args: &Cli) -> Result<()> {
   // TODO EXTRA: parallelize this with a tokio::select! macro and a concurrent vector and benchmark.
   let (join_match_tx, join_match_rx) = tokio::sync::mpsc::unbounded_channel::<JoinMatchRequest>();
 
-  let matchmaker = tokio::spawn(matchmaker::matchmaker(join_match_rx, args.match_size));
+  let game_server_service = game_server_service::from_type(&args.game_server_service);
+
+  let matchmaker = tokio::spawn(matchmaker::matchmaker(
+    join_match_rx,
+    game_server_service,
+    args.match_size,
+  ));
   let listener = tokio::spawn(listen_handler(listener, join_match_tx));
 
   tokio::select! {
