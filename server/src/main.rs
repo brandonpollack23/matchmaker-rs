@@ -8,9 +8,7 @@ use tokio::{
   sync::mpsc::UnboundedSender,
 };
 use tracing::{error, instrument, Instrument};
-use tracing_subscriber::{
-  layer::SubscriberExt, util::SubscriberInitExt, Layer,
-};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 
 mod game_server_service;
 mod matchmaker;
@@ -37,6 +35,9 @@ struct Cli {
   game_server_service: GameServerServiceTypes,
   #[arg(short, long, default_value = "60")]
   match_size: u32,
+  /// Enable the tokio console (see https://github.com/tokio-rs/console)
+  #[arg(short, long, default_value = "false")]
+  tokio_console: bool,
 }
 
 #[tokio::main]
@@ -48,7 +49,12 @@ async fn main() {
   let args = Cli::parse();
   eprintln!("print log level: {}", args.print_log_level.as_str());
 
-  // Setup tracing.
+  setup_tracing(&args);
+
+  run_server(&args).await.unwrap();
+}
+
+fn setup_tracing(args: &Cli) {
   tracing_subscriber::registry()
     .with(
       tracing_subscriber::fmt::layer()
@@ -59,11 +65,12 @@ async fn main() {
           args.print_log_level,
         )),
     )
-    .with(console_subscriber::spawn())
+    .with(if args.tokio_console {
+      Some(console_subscriber::spawn())
+    } else {
+      None
+    })
     .init();
-
-  // Run the server.
-  run_server(&args).await.unwrap();
 }
 
 #[instrument]
