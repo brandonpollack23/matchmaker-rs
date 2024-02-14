@@ -32,8 +32,12 @@ pub async fn matchmaker(
 ) -> Result<()> {
   let (request_game_tx, request_game_rx) = tokio::sync::mpsc::channel::<MatchmakeResponder>(1);
 
-  let user_aggregator = tokio::spawn(user_aggregator(join_match_rx, request_game_rx, match_size));
-  let matchmaker = tokio::spawn(matchmaker_loop(request_game_tx, game_server_service));
+  let user_aggregator = tokio::task::Builder::new()
+    .name("matchmaker::user_aggregator")
+    .spawn(user_aggregator(join_match_rx, request_game_rx, match_size))?;
+  let matchmaker = tokio::task::Builder::new()
+    .name("matchmaker::matchmaking_loop")
+    .spawn(matchmaker_loop(request_game_tx, game_server_service))?;
 
   tokio::select! {
     r = user_aggregator => {

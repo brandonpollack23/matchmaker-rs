@@ -89,12 +89,16 @@ async fn run_server(args: &Cli) -> Result<()> {
 
   let game_server_service = game_server_service::from_type(&args.game_server_service);
 
-  let matchmaker = tokio::spawn(matchmaker::matchmaker(
-    join_match_rx,
-    game_server_service,
-    args.match_size,
-  ));
-  let listener = tokio::spawn(listen_handler(listener, join_match_tx));
+  let matchmaker = tokio::task::Builder::new()
+    .name("matchmaker::supervisor")
+    .spawn(matchmaker::matchmaker(
+      join_match_rx,
+      game_server_service,
+      args.match_size,
+    ))?;
+  let listener = tokio::task::Builder::new()
+    .name("server::listener")
+    .spawn(listen_handler(listener, join_match_tx))?;
 
   tokio::select! {
     r = listener => {
@@ -117,13 +121,15 @@ async fn listen_handler(
     let span = tracing::info_span!("client_connection", %addr);
 
     let tx = join_match_tx.clone();
-    if let Err(e) = tokio::spawn(async move {
-      if let Err(e) = handle_client_connection(socket, &tx).await {
-        error!("client connection error: {:?}", e);
-      }
-    })
-    .instrument(span)
-    .await
+    if let Err(e) = tokio::task::Builder::new()
+      .name(&format!("socket::{addr:?}"))
+      .spawn(async move {
+        if let Err(e) = handle_client_connection(socket, &tx).await {
+          error!("client connection error: {:?}", e);
+        }
+      })?
+      .instrument(span)
+      .await
     {
       error!("failed to spawn task: {:?}", e);
     }
