@@ -9,7 +9,7 @@ use tokio::{
 };
 use tracing::{error, instrument, Instrument};
 use tracing_subscriber::{
-  fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt, Layer,
+  layer::SubscriberExt, util::SubscriberInitExt, Layer,
 };
 
 mod game_server_service;
