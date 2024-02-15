@@ -2,7 +2,7 @@ use clap::Parser;
 use color_eyre::Result;
 use game_server_service::GameServerServiceTypes;
 use tokio::{
-  io::{AsyncReadExt, AsyncWriteExt},
+  io::AsyncWriteExt,
   net::{TcpListener, TcpStream},
   sync::{
     mpsc::{self, UnboundedSender},
@@ -20,7 +20,10 @@ mod matchmaker;
 
 // TODO MAIN GOALS: profile with a perf based tool
 // TODO MAIN GOALS: trace with tracy, OTel/Jaeger, Chrome/Perfetto.
-// TODO MAIN GOALS: redis distributed feature version and docker compose to stand up.
+// TODO MAIN GOALS: redis distributed feature version and docker compose to
+// stand up.
+
+// TODO TESTS: server side
 
 // TODO Docs: clap explanation string
 
@@ -83,7 +86,8 @@ async fn run_server(args: &Cli) -> Result<()> {
     .await
     .unwrap();
 
-  // TODO EXTRA: parallelize this with a tokio::select! macro and a concurrent vector and benchmark.
+  // TODO EXTRA: parallelize this with a tokio::select! macro and a concurrent
+  // vector and benchmark.
   let (join_match_tx, join_match_rx) = mpsc::unbounded_channel::<JoinMatchRequestWithReply>();
 
   let game_server_service = game_server_service::from_type(&args.game_server_service);
@@ -138,7 +142,8 @@ async fn listen_handler(
 /// Handle client connection.
 /// The protocol is byte based.
 /// 4 bytes - payload length N -- this gives us a max length of 4GB
-/// N bytes - payload in the form of a MessagePack object TODO consider changing to typesafe language agnostic like protobufs or flatpaks or avro.
+/// N bytes - payload in the form of a MessagePack object TODO consider changing
+/// to typesafe language agnostic like protobufs or flatpaks or avro.
 async fn handle_client_connection(
   mut socket: TcpStream,
   join_match_tx: &UnboundedSender<JoinMatchRequestWithReply>,

@@ -1,20 +1,15 @@
-use std::fmt;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+  fmt,
+  fmt::{Debug, Formatter},
+  sync::Arc,
+  time::Duration,
+};
 
 use color_eyre::Result;
-use tokio::sync::mpsc;
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 
-use tracing::error;
-use tracing::info;
-use tracing::instrument;
-use tracing::span;
-use tracing::Level;
-use wire_protocol::GameServerInfo;
-use wire_protocol::JoinMatchRequest;
+use tracing::{error, info, instrument, span, Level};
+use wire_protocol::{GameServerInfo, JoinMatchRequest};
 
 use crate::game_server_service::GameServerService;
 

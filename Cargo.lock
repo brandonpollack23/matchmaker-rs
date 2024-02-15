@@ -676,6 +676,8 @@ dependencies = [
  "rand",
  "rand_distr",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
  "uuid",
  "wire_protocol",
 ]

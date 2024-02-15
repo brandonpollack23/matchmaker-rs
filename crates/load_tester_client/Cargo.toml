@@ -9,5 +9,7 @@ color-eyre = { workspace = true }
 rand = "0.8.5"
 rand_distr = "0.4.3"
 tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 uuid = { workspace = true }
 wire_protocol = { path = "../wire_protocol" }

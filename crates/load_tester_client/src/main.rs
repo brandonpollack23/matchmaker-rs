@@ -2,9 +2,10 @@ use std::time::Duration;
 
 use clap::Parser;
 use color_eyre::Result;
-use rand::Rng;
 use rand_distr::Distribution;
 use tokio::{io::AsyncWriteExt, sync::OnceCell};
+use tracing::{info, instrument, trace};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 use uuid::Uuid;
 
 #[derive(clap::Parser, Debug)]
@@ -27,6 +28,18 @@ static ARGS: OnceCell<Cli> = OnceCell::const_new();
 async fn main() {
   color_eyre::install().unwrap();
 
+  tracing_subscriber::registry()
+    .with(
+      tracing_subscriber::fmt::layer()
+        .compact()
+        .with_file(true)
+        .with_line_number(true)
+        .with_filter(tracing_subscriber::filter::LevelFilter::from_level(
+          tracing::Level::TRACE,
+        )),
+    )
+    .init();
+
   ARGS.set(Cli::parse()).unwrap();
   eprintln!("Running with args: {:#?}", ARGS.get().unwrap());
 
@@ -36,11 +49,12 @@ async fn main() {
     tokio::spawn(simulate_client(&ARGS.get().unwrap().server_address));
 
     let sleep_time = dist.sample(&mut rng).max(0f32);
-    eprintln!("Sleeping for {}ms", sleep_time);
+    trace!("Sleeping for {}ms", sleep_time);
     tokio::time::sleep(Duration::from_millis(sleep_time as u64)).await;
   }
 }
 
+#[instrument]
 async fn simulate_client(server_address: &str) -> Result<()> {
   let mut stream = tokio::net::TcpStream::connect(server_address).await?;
 
@@ -51,6 +65,11 @@ async fn simulate_client(server_address: &str) -> Result<()> {
   let buffer = wire_protocol::serialize(&message)?;
 
   stream.write_all(&buffer).await?;
+
+  let server_reply: wire_protocol::GameServerInfo =
+    wire_protocol::deserialize_async(&mut stream).await?;
+
+  info!("Server replied with: {:?}", server_reply);
 
   Ok(())
 }

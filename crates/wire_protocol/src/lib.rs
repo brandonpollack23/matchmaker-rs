@@ -1,11 +1,10 @@
-use std::fmt::Display;
-use std::io::Cursor;
-use std::io::Read;
-use std::io::Write;
+use std::{
+  fmt::Display,
+  io::{Cursor, Read, Write},
+};
 
 use serde::{Deserialize, Serialize};
-use tokio::io::AsyncRead;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncRead, AsyncReadExt};
 use uuid::Uuid;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -27,7 +26,7 @@ impl Display for Error {
 
 impl std::error::Error for Error {}
 
-pub fn serialize(message: &MatchmakeProtocolMessage) -> Result<Vec<u8>> {
+pub fn serialize<M: Serialize>(message: &M) -> Result<Vec<u8>> {
   let mut buf = Cursor::new(Vec::new());
   buf.set_position(4);
 
@@ -47,9 +46,9 @@ pub fn serialize(message: &MatchmakeProtocolMessage) -> Result<Vec<u8>> {
   Ok(buf)
 }
 
-pub async fn deserialize_async<AR: AsyncRead + Unpin>(
+pub async fn deserialize_async<M: for<'a> Deserialize<'a>, AR: AsyncRead + Unpin>(
   source: &mut AR,
-) -> Result<MatchmakeProtocolMessage> {
+) -> Result<M> {
   let size = source
     .read_u32()
     .await
@@ -60,12 +59,12 @@ pub async fn deserialize_async<AR: AsyncRead + Unpin>(
     .read_exact(&mut buffer)
     .await
     .map_err(|e| Error::DeserializeError(format!("could not message into buffer: {:?}", e)))?;
-  let message: MatchmakeProtocolMessage = rmp_serde::from_slice(&buffer)
+  let message: M = rmp_serde::from_slice(&buffer)
     .map_err(|e| Error::DeserializeError(format!("could not rmp_serde deserialize: {:?}", e)))?;
   Ok(message)
 }
 
-pub fn deserialize_sync<R: Read>(source: &mut R) -> Result<MatchmakeProtocolMessage> {
+pub fn deserialize_sync<M: for<'a> Deserialize<'a>, R: Read>(source: &mut R) -> Result<M> {
   let mut size_buf = [0u8; 4];
   source
     .read_exact(&mut size_buf)
@@ -76,7 +75,7 @@ pub fn deserialize_sync<R: Read>(source: &mut R) -> Result<MatchmakeProtocolMess
   source
     .read_exact(&mut buffer)
     .map_err(|e| Error::DeserializeError(format!("could not message into buffer: {:?}", e)))?;
-  let message: MatchmakeProtocolMessage = rmp_serde::from_slice(&buffer)
+  let message: M = rmp_serde::from_slice(&buffer)
     .map_err(|e| Error::DeserializeError(format!("could not rmp_serde deserialize: {:?}", e)))?;
   Ok(message)
 }
@@ -87,7 +86,8 @@ pub enum MatchmakeProtocolMessage {
   JoinMatch(JoinMatchRequest),
 }
 
-/// Protocol message representing a request to join a match, contains all the users to join.
+/// Protocol message representing a request to join a match, contains all the
+/// users to join.
 #[derive(PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub struct JoinMatchRequest {
   // TODO ENHANCEMENT change to a vec of users, mark users that are trying to queue together
@@ -119,7 +119,7 @@ mod tests {
     let buf = serialize(&message).unwrap();
 
     let mut cursor = Cursor::new(buf);
-    let message_readback = deserialize_sync(&mut cursor).unwrap();
+    let message_readback: MatchmakeProtocolMessage = deserialize_sync(&mut cursor).unwrap();
     assert_eq!(message_readback, message);
   }
 
@@ -131,7 +131,7 @@ mod tests {
     let buf = serialize(&message).unwrap();
 
     let mut cursor = Cursor::new(buf);
-    let message_readback = deserialize_async(&mut cursor).await.unwrap();
+    let message_readback: MatchmakeProtocolMessage = deserialize_async(&mut cursor).await.unwrap();
     assert_eq!(message_readback, message);
   }
 }
