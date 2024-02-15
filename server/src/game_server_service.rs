@@ -2,25 +2,19 @@ use std::sync::Arc;
 
 use clap::ValueEnum;
 use color_eyre::Result;
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use wire_protocol::GameServerInfo;
 
 pub trait GameServerService: Sync + Send + std::fmt::Debug {
-  fn acquire_game_server(&self) -> Result<GameServer>;
-}
-
-// TODO NOW this and all serializable stuff should be moved to a shared crate.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct GameServer {
-  pub id: Uuid,
+  fn acquire_game_server(&self) -> Result<GameServerInfo>;
 }
 
 #[derive(Debug, Clone)]
 pub struct TestGameServerService;
 
 impl GameServerService for TestGameServerService {
-  fn acquire_game_server(&self) -> Result<GameServer> {
-    Ok(GameServer { id: Uuid::new_v4() })
+  fn acquire_game_server(&self) -> Result<GameServerInfo> {
+    Ok(GameServerInfo { id: Uuid::new_v4() })
   }
 }
 

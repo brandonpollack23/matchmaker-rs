@@ -1,7 +1,6 @@
 use clap::Parser;
 use color_eyre::Result;
-use game_server_service::{GameServer, GameServerServiceTypes};
-use protocol::MatchmakeProtocolMessage;
+use game_server_service::GameServerServiceTypes;
 use tokio::{
   io::{AsyncReadExt, AsyncWriteExt},
   net::{TcpListener, TcpStream},
@@ -12,12 +11,12 @@ use tokio::{
 };
 use tracing::{error, instrument, Instrument};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
+use wire_protocol::{GameServerInfo, MatchmakeProtocolMessage};
 
 use crate::matchmaker::JoinMatchRequestWithReply;
 
 mod game_server_service;
 mod matchmaker;
-mod protocol;
 
 // TODO MAIN GOALS: profile with a perf based tool
 // TODO MAIN GOALS: trace with tracy, OTel/Jaeger, Chrome/Perfetto.
@@ -160,7 +159,7 @@ async fn handle_message(
 ) -> Result<()> {
   match message {
     MatchmakeProtocolMessage::JoinMatch(request) => {
-      let (tx, rx) = oneshot::channel::<GameServer>();
+      let (tx, rx) = oneshot::channel::<GameServerInfo>();
       let req_with_sock = JoinMatchRequestWithReply { request, tx };
       join_match_tx.send(req_with_sock)?;
 

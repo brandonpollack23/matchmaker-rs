@@ -13,10 +13,10 @@ use tracing::info;
 use tracing::instrument;
 use tracing::span;
 use tracing::Level;
+use wire_protocol::GameServerInfo;
+use wire_protocol::JoinMatchRequest;
 
-use crate::game_server_service::GameServer;
 use crate::game_server_service::GameServerService;
-use crate::protocol::JoinMatchRequest;
 
 // TODO Feature: SBMM (Skill Based Match Making), depending on skill level sort
 // into different buckets.  With backoff, expand range of adjacent bucket search
@@ -131,7 +131,7 @@ async fn matchmaker_iteration(
 
 pub struct JoinMatchRequestWithReply {
   pub request: JoinMatchRequest,
-  pub tx: oneshot::Sender<GameServer>,
+  pub tx: oneshot::Sender<GameServerInfo>,
 }
 
 impl Debug for JoinMatchRequestWithReply {
