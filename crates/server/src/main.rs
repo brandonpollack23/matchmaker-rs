@@ -2,6 +2,9 @@ use clap::Parser;
 use color_eyre::Result;
 use game_server_service::GameServerServiceTypes;
 use matchmaker::UserAggregatorModeCli;
+use opentelemetry::KeyValue;
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::{propagation::TraceContextPropagator, trace, Resource};
 use tokio::{
   io::AsyncWriteExt,
   net::{TcpListener, TcpStream},
@@ -10,12 +13,14 @@ use tokio::{
     oneshot,
   },
 };
-use tracing::{debug, error, info, instrument, Instrument};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
+use tracing::{debug, error, instrument, Instrument};
+use tracing_subscriber::{layer::SubscriberExt, Layer};
 use wire_protocol::{GameServerInfo, MatchmakeProtocolRequest, MatchmakeProtocolResponse};
 
 #[cfg(feature = "pprof")]
 use pprof::ProfilerGuard;
+#[cfg(feature = "pprof")]
+use std::sync::OnceLock;
 
 use crate::matchmaker::JoinMatchRequestWithReply;
 
@@ -51,6 +56,7 @@ struct Cli {
   /// Whether to use a local or redis based distributed user aggregator.
   #[arg(short = 'm', long, default_value = "local")]
   user_aggregator_mode: UserAggregatorModeCli,
+  // TODO make this whole IP.
   /// Redis port to use.  Only read when [Cli::user_aggregator_mode] is set to
   /// redis.
   #[arg(long, default_value = "6379")]
@@ -73,9 +79,12 @@ async fn main() {
   let args = Cli::parse();
   eprintln!("Running with args: {:#?}", args);
 
-  setup_tracing(&args);
+  setup_tracing(&args).unwrap();
 
   run_server(&args).await.unwrap();
+
+  #[cfg(feature = "otel")]
+  opentelemetry::global::shutdown_tracer_provider();
 }
 
 #[cfg(feature = "pprof")]
@@ -107,8 +116,12 @@ async fn setup_pprof() {
 #[cfg(not(feature = "pprof"))]
 async fn setup_pprof() {}
 
-fn setup_tracing(args: &Cli) {
-  let tracing = tracing_subscriber::registry()
+fn setup_tracing(args: &Cli) -> Result<()> {
+  // Setup propogator so that we can trace across services.
+  #[cfg(feature = "otel")]
+  opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
+
+  let tracing_subscriber = tracing_subscriber::registry()
     .with(
       tracing_subscriber::fmt::layer()
         .compact()
@@ -125,17 +138,36 @@ fn setup_tracing(args: &Cli) {
     });
 
   #[cfg(feature = "otel")]
-  let tracing = {
-    let tracer = opentelemetry_jaeger::new_agent_pipeline()
-      .with_service_name("matchmaker-rs")
-      .install_simple()
-      .unwrap();
-    let otel = tracing_opentelemetry::layer().with_tracer(tracer);
+  let tracing_subscriber = {
+    // TODO add flag for this IP.
+    let otlp_exporter = opentelemetry_otlp::new_exporter()
+      .tonic()
+      .with_endpoint("http://localhost:4317");
+    // Then pass it into pipeline builder
+    let tracer = opentelemetry_otlp::new_pipeline()
+      .tracing()
+      .with_exporter(otlp_exporter)
+      .with_trace_config(
+        trace::config().with_resource(Resource::new(vec![KeyValue::new(
+          opentelemetry_semantic_conventions::resource::SERVICE_NAME,
+          "matchmaker-rs",
+        )])),
+      )
+      .install_batch(opentelemetry_sdk::runtime::Tokio)?;
+    let otel = tracing_opentelemetry::layer()
+      .with_tracer(tracer)
+      .with_filter(
+        tracing_subscriber::filter::EnvFilter::try_from_default_env().unwrap_or(
+          tracing_subscriber::filter::EnvFilter::new("info,[tokio::]=off"),
+        ),
+      );
 
-    tracing.with(otel)
+    tracing_subscriber.with(otel)
   };
 
-  tracing.init();
+  tracing::subscriber::set_global_default(tracing_subscriber).unwrap();
+
+  Ok(())
 }
 
 #[instrument]
@@ -181,6 +213,7 @@ async fn run_server(args: &Cli) -> Result<()> {
   Ok(())
 }
 
+#[instrument]
 async fn listen_handler(
   listener: TcpListener,
   join_match_tx: UnboundedSender<JoinMatchRequestWithReply>,
@@ -188,7 +221,7 @@ async fn listen_handler(
   loop {
     let (socket, addr) = listener.accept().await.unwrap();
     let span = tracing::info_span!("client_connection", %addr);
-    info!("accepted connection from: {:?}", addr);
+    debug!("accepted connection from: {:?}", addr);
 
     let tx = join_match_tx.clone();
     tokio::task::Builder::new()
@@ -209,6 +242,7 @@ async fn listen_handler(
 /// 4 bytes - payload length N -- this gives us a max length of 4GB
 /// N bytes - payload in the form of a MessagePack object TODO consider changing
 /// to typesafe language agnostic like protobufs or flatpaks or avro.
+#[instrument]
 async fn handle_client_connection(
   mut socket: TcpStream,
   join_match_tx: &UnboundedSender<JoinMatchRequestWithReply>,
@@ -224,6 +258,7 @@ async fn handle_client_connection(
   }
 }
 
+#[instrument]
 async fn handle_message(
   message: MatchmakeProtocolRequest,
   socket: &mut TcpStream,
