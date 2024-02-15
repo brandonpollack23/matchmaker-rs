@@ -1,8 +1,14 @@
 [workspace]
-members = ["server", "wire_protocol"]
+members = [
+  "crates/*"
+]
 resolver = "2"
 
 [workspace.dependencies]
+clap = { version = "4.5.0", features = ["derive"] }
+color-eyre = "0.6.2"
+rand = "0.8.5"
 rmp-serde = "1.1.2"
 serde = { version = "1.0.196", features = ["derive"] }
+tokio = { version = "1.36.0", features = ["full", "tracing"] }
 uuid = { version = "1.7.0", features = ["fast-rng", "serde", "v4"] }

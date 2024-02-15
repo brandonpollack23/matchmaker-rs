@@ -51,7 +51,7 @@ async fn main() {
 
   // Parse command line arguments.
   let args = Cli::parse();
-  eprintln!("print log level: {}", args.print_log_level.as_str());
+  eprintln!("Running with args: {:#?}", args);
 
   setup_tracing(&args);
 
@@ -144,10 +144,7 @@ async fn handle_client_connection(
   join_match_tx: &UnboundedSender<JoinMatchRequestWithReply>,
 ) -> Result<()> {
   loop {
-    let size = socket.read_u32().await?;
-    let mut buffer = Vec::with_capacity(size as usize);
-    socket.read_exact(&mut buffer).await?;
-    let message: MatchmakeProtocolMessage = rmp_serde::from_slice(&buffer)?;
+    let message = wire_protocol::deserialize_async(&mut socket).await?;
     handle_message(message, &mut socket, join_match_tx).await?;
   }
 }

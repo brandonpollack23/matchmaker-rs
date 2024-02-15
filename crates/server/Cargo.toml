@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-clap = { version = "4.5.0", features = ["derive"] }
-color-eyre = "0.6.2"
+clap = { workspace = true }
+color-eyre = { workspace = true }
 console-subscriber = { version = "0.2.0", features = ["parking_lot"] }
 redis = "0.24.0"
 rmp-serde = { workspace = true }
 serde = { workspace = true }
-tokio = { version = "1.36.0", features = ["full", "tracing"] }
+tokio = { workspace = true }
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
 uuid = { workspace = true }
