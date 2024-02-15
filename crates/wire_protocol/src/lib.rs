@@ -98,7 +98,7 @@ pub struct JoinMatchRequest {
 }
 
 #[derive(PartialEq, Eq, Serialize, Deserialize, Debug)]
-pub struct User(Uuid);
+pub struct User(pub Uuid);
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GameServerInfo {

@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-color-eyre = { workspace = true }
 clap = { workspace = true }
-tokio = { workspace = true }
+color-eyre = { workspace = true }
 rand = "0.8.5"
 rand_distr = "0.4.3"
+tokio = { workspace = true }
+uuid = { workspace = true }
+wire_protocol = { path = "../wire_protocol" }

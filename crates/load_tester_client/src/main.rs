@@ -4,7 +4,8 @@ use clap::Parser;
 use color_eyre::Result;
 use rand::Rng;
 use rand_distr::Distribution;
-use tokio::sync::OnceCell;
+use tokio::{io::AsyncWriteExt, sync::OnceCell};
+use uuid::Uuid;
 
 #[derive(clap::Parser, Debug)]
 #[command(
@@ -41,8 +42,15 @@ async fn main() {
 }
 
 async fn simulate_client(server_address: &str) -> Result<()> {
-  // TODO NOW can I move logic to wire protocol?
   let mut stream = tokio::net::TcpStream::connect(server_address).await?;
+
+  let message =
+    wire_protocol::MatchmakeProtocolMessage::JoinMatch(wire_protocol::JoinMatchRequest {
+      user: wire_protocol::User(Uuid::new_v4()),
+    });
+  let buffer = wire_protocol::serialize(&message)?;
+
+  stream.write_all(&buffer).await?;
 
   Ok(())
 }

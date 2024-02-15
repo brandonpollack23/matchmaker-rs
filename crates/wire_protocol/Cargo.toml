@@ -6,5 +6,5 @@ edition = "2021"
 [dependencies]
 rmp-serde = { workspace = true }
 serde = { workspace = true }
-uuid = { workspace = true }
 tokio = { workspace = true }
+uuid = { workspace = true }
