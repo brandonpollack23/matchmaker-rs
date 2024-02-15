@@ -84,6 +84,7 @@ pub fn deserialize_sync<M: for<'a> Deserialize<'a>, R: Read>(source: &mut R) -> 
 #[derive(PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum MatchmakeProtocolMessage {
   JoinMatch(JoinMatchRequest),
+  Disconnect,
 }
 
 /// Protocol message representing a request to join a match, contains all the

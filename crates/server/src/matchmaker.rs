@@ -8,7 +8,7 @@ use std::{
 use color_eyre::Result;
 use tokio::sync::{mpsc, oneshot};
 
-use tracing::{error, info, instrument, span, Level};
+use tracing::{debug, error, info, instrument, span, Level};
 use wire_protocol::{GameServerInfo, JoinMatchRequest};
 
 use crate::game_server_service::GameServerService;
@@ -78,6 +78,8 @@ async fn user_aggregator(
         } {
           error!("failed to send game request: {:?}", err)
         };
+
+        info!("Users still waiting for a game: {}", matchmake_requests.len());
       }
     }
   }
@@ -112,9 +114,11 @@ async fn matchmaker_iteration(
   let users = rx.await?;
 
   if users.is_none() {
-    info!("Not enough users to match yet, retrying...");
+    debug!("Not enough users to match yet, retrying...");
     return Ok(());
   }
+
+  info!("Found enough users to match, creating game server...");
 
   let game_server = game_server_service.acquire_game_server()?;
   for user in users.unwrap().into_iter() {

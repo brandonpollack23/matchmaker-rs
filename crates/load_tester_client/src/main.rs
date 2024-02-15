@@ -4,7 +4,7 @@ use clap::Parser;
 use color_eyre::Result;
 use rand_distr::Distribution;
 use tokio::{io::AsyncWriteExt, sync::OnceCell};
-use tracing::{info, instrument, trace};
+use tracing::{debug, info, instrument, trace};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 use uuid::Uuid;
 
@@ -35,7 +35,7 @@ async fn main() {
         .with_file(true)
         .with_line_number(true)
         .with_filter(tracing_subscriber::filter::LevelFilter::from_level(
-          tracing::Level::TRACE,
+          tracing::Level::DEBUG,
         )),
     )
     .init();
@@ -49,7 +49,7 @@ async fn main() {
     tokio::spawn(simulate_client(&ARGS.get().unwrap().server_address));
 
     let sleep_time = dist.sample(&mut rng).max(0f32);
-    trace!("Sleeping for {}ms", sleep_time);
+    debug!("Sleeping for {}ms", sleep_time);
     tokio::time::sleep(Duration::from_millis(sleep_time as u64)).await;
   }
 }

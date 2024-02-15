@@ -9,7 +9,7 @@ use tokio::{
     oneshot,
   },
 };
-use tracing::{error, instrument, Instrument};
+use tracing::{error, info, instrument, Instrument};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 use wire_protocol::{GameServerInfo, MatchmakeProtocolMessage};
 
@@ -92,6 +92,10 @@ async fn run_server(args: &Cli) -> Result<()> {
 
   let game_server_service = game_server_service::from_type(&args.game_server_service);
 
+  let listener = tokio::task::Builder::new()
+    .name("server::listener")
+    .spawn(listen_handler(listener, join_match_tx))?;
+
   let matchmaker = tokio::task::Builder::new()
     .name("matchmaker::supervisor")
     .spawn(matchmaker::matchmaker(
@@ -99,9 +103,6 @@ async fn run_server(args: &Cli) -> Result<()> {
       game_server_service,
       args.match_size,
     ))?;
-  let listener = tokio::task::Builder::new()
-    .name("server::listener")
-    .spawn(listen_handler(listener, join_match_tx))?;
 
   tokio::select! {
     r = listener => {
@@ -122,20 +123,21 @@ async fn listen_handler(
   loop {
     let (socket, addr) = listener.accept().await.unwrap();
     let span = tracing::info_span!("client_connection", %addr);
+    info!("accepted connection from: {:?}", addr);
 
     let tx = join_match_tx.clone();
-    if let Err(e) = tokio::task::Builder::new()
-      .name(&format!("socket::{addr:?}"))
-      .spawn(async move {
-        if let Err(e) = handle_client_connection(socket, &tx).await {
-          error!("client connection error: {:?}", e);
-        }
-      })?
-      .instrument(span)
-      .await
-    {
-      error!("failed to spawn task: {:?}", e);
-    }
+    tokio::spawn(
+      tokio::task::Builder::new()
+        .name(&format!("socket::{addr:?}"))
+        .spawn(async move {
+          if let Err(e) = handle_client_connection(socket, &tx).await {
+            error!("client connection error: {:?}", e);
+          }
+
+          info!("client connection closed: {:?}", addr);
+        })?
+        .instrument(span),
+    );
   }
 }
 
@@ -150,7 +152,9 @@ async fn handle_client_connection(
 ) -> Result<()> {
   loop {
     let message = wire_protocol::deserialize_async(&mut socket).await?;
-    handle_message(message, &mut socket, join_match_tx).await?;
+    if let Continue::No = handle_message(message, &mut socket, join_match_tx).await? {
+      return Ok(());
+    }
   }
 }
 
@@ -158,7 +162,7 @@ async fn handle_message(
   message: MatchmakeProtocolMessage,
   socket: &mut TcpStream,
   join_match_tx: &UnboundedSender<JoinMatchRequestWithReply>,
-) -> Result<()> {
+) -> Result<Continue> {
   match message {
     MatchmakeProtocolMessage::JoinMatch(request) => {
       let (tx, rx) = oneshot::channel::<GameServerInfo>();
@@ -169,7 +173,13 @@ async fn handle_message(
       // rmp_serde::encode::write(socket, &server)?;
       socket.write_all(&rmp_serde::to_vec(&server)?).await?;
     }
+    MatchmakeProtocolMessage::Disconnect => return Ok(Continue::No),
   }
 
-  Ok(())
+  Ok(Continue::Yes)
+}
+
+enum Continue {
+  Yes,
+  No,
 }
