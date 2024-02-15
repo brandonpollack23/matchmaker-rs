@@ -5,6 +5,7 @@ use std::{
   time::Duration,
 };
 
+use clap::ValueEnum;
 use color_eyre::Result;
 use tokio::sync::{mpsc, oneshot};
 
@@ -23,13 +24,21 @@ type MatchmakeResponder = oneshot::Sender<Option<Vec<JoinMatchRequestWithReply>>
 pub async fn matchmaker(
   join_match_rx: mpsc::UnboundedReceiver<JoinMatchRequestWithReply>,
   game_server_service: Arc<dyn GameServerService>,
+  user_aggregator_mode: UserAggregatorMode,
   match_size: u32,
 ) -> Result<()> {
   let (request_game_tx, request_game_rx) = tokio::sync::mpsc::channel::<MatchmakeResponder>(1);
 
-  let user_aggregator = tokio::task::Builder::new()
-    .name("matchmaker::user_aggregator")
-    .spawn(user_aggregator(join_match_rx, request_game_rx, match_size))?;
+  let user_aggregator = match user_aggregator_mode {
+    UserAggregatorMode::Local => tokio::task::Builder::new()
+      .name("matchmaker::user_aggregator")
+      .spawn(user_aggregator(join_match_rx, request_game_rx, match_size))?,
+    UserAggregatorMode::RedisCluster(_port) => {
+      // TODO MAIN GOALS
+      todo!("implement RedisCluster user aggregator")
+    }
+  };
+
   let matchmaker = tokio::task::Builder::new()
     .name("matchmaker::matchmaking_loop")
     .spawn(matchmaker_loop(request_game_tx, game_server_service))?;
@@ -139,4 +148,17 @@ impl Debug for JoinMatchRequestWithReply {
       .field("request", &self.request)
       .finish()
   }
+}
+
+#[derive(Debug, Clone, ValueEnum)]
+pub enum UserAggregatorModeCli {
+  Local,
+  #[clap(name = "redis")]
+  RedisCluster,
+}
+
+#[derive(Debug, Clone)]
+pub enum UserAggregatorMode {
+  Local,
+  RedisCluster(u16),
 }

@@ -1,6 +1,7 @@
 use clap::Parser;
 use color_eyre::Result;
 use game_server_service::GameServerServiceTypes;
+use matchmaker::UserAggregatorModeCli;
 use tokio::{
   io::AsyncWriteExt,
   net::{TcpListener, TcpStream},
@@ -9,7 +10,7 @@ use tokio::{
     oneshot,
   },
 };
-use tracing::{error, info, instrument, Instrument};
+use tracing::{debug, error, info, instrument, Instrument};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 use wire_protocol::{GameServerInfo, MatchmakeProtocolRequest, MatchmakeProtocolResponse};
 
@@ -40,7 +41,13 @@ struct Cli {
   port: u16,
   #[arg(long, default_value = "test")]
   game_server_service: GameServerServiceTypes,
-  #[arg(short, long, default_value = "60")]
+  /// Whether to use a local or redis based distributed user aggregator.
+  #[arg(short = 'm', long, default_value = "local")]
+  user_aggregator_mode: UserAggregatorModeCli,
+  /// Redis port to use.  Only read when [Cli::user_aggregator_mode] is set to redis.
+  #[arg(long, default_value = "6379")]
+  redis_port: Option<u16>,
+  #[arg(short = 's', long, default_value = "60")]
   match_size: u32,
   /// Enable the tokio console (see <https://github.com/tokio-rs/console>)
   #[arg(short, long, default_value = "false")]
@@ -96,11 +103,18 @@ async fn run_server(args: &Cli) -> Result<()> {
     .name("server::listener")
     .spawn(listen_handler(listener, join_match_tx))?;
 
+  let user_aggregator_mode = match args.user_aggregator_mode {
+    UserAggregatorModeCli::Local => matchmaker::UserAggregatorMode::Local,
+    UserAggregatorModeCli::RedisCluster => {
+      matchmaker::UserAggregatorMode::RedisCluster(args.redis_port.unwrap())
+    }
+  };
   let matchmaker = tokio::task::Builder::new()
     .name("matchmaker::supervisor")
     .spawn(matchmaker::matchmaker(
       join_match_rx,
       game_server_service,
+      user_aggregator_mode,
       args.match_size,
     ))?;
 
@@ -126,18 +140,16 @@ async fn listen_handler(
     info!("accepted connection from: {:?}", addr);
 
     let tx = join_match_tx.clone();
-    tokio::spawn(
-      tokio::task::Builder::new()
-        .name(&format!("socket::{addr:?}"))
-        .spawn(async move {
-          if let Err(e) = handle_client_connection(socket, &tx).await {
-            error!("client connection error: {:?}", e);
-          }
+    tokio::task::Builder::new()
+      .name(&format!("socket::{addr:?}"))
+      // .instrument(span)
+      .spawn(async move {
+        if let Err(e) = handle_client_connection(socket, &tx).await {
+          error!("client connection error: {:?}", e);
+        }
 
-          info!("client connection closed: {:?}", addr);
-        })?
-        .instrument(span),
-    );
+        debug!("client connection closed: {:?}", addr);
+      }.instrument(span))?;
   }
 }
 
