@@ -3,10 +3,14 @@ name = "matchmaker-rs"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+pprof = ["dep:pprof"]
+
 [dependencies]
 clap = { workspace = true }
 color-eyre = { workspace = true }
 console-subscriber = { version = "0.2.0", features = ["parking_lot"] }
+pprof = { workspace = true, optional = true }
 redis = "0.24.0"
 rmp-serde = { workspace = true }
 serde = { workspace = true }

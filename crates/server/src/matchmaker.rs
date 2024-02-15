@@ -1,6 +1,6 @@
 use std::{
-  fmt,
-  fmt::{Debug, Formatter},
+  collections::VecDeque,
+  fmt::{self, Debug, Formatter},
   sync::Arc,
   time::Duration,
 };
@@ -61,7 +61,7 @@ async fn user_aggregator(
   mut request_game_rx: mpsc::Receiver<MatchmakeResponder>,
   match_size: u32,
 ) -> Result<()> {
-  let mut matchmake_requests: Vec<JoinMatchRequestWithReply> = Vec::new();
+  let mut matchmake_requests: VecDeque<JoinMatchRequestWithReply> = VecDeque::new();
 
   loop {
     tokio::select! {
@@ -73,7 +73,7 @@ async fn user_aggregator(
         )
         .entered();
 
-        matchmake_requests.push(join_match_request)
+        matchmake_requests.push_back(join_match_request)
       },
 
       Some(chan) = request_game_rx.recv() => {

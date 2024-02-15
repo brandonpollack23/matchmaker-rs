@@ -1,7 +1,10 @@
+use std::{cell::OnceCell, sync::OnceLock};
+
 use clap::Parser;
 use color_eyre::Result;
 use game_server_service::GameServerServiceTypes;
 use matchmaker::UserAggregatorModeCli;
+use pprof::ProfilerGuard;
 use tokio::{
   io::AsyncWriteExt,
   net::{TcpListener, TcpStream},
@@ -27,6 +30,9 @@ mod matchmaker;
 // TODO TESTS: server side
 
 // TODO Docs: clap explanation string
+
+#[cfg(feature = "pprof")]
+static PPROF_GUARD: OnceLock<ProfilerGuard<'static>> = OnceLock::new();
 
 #[derive(clap::Parser, Debug)]
 #[command(
@@ -56,6 +62,9 @@ struct Cli {
 
 #[tokio::main]
 async fn main() {
+  #[cfg(feature = "pprof")]
+  setup_pprof().await;
+
   // Setup pretty error handling.
   color_eyre::install().unwrap();
 
@@ -66,6 +75,31 @@ async fn main() {
   setup_tracing(&args);
 
   run_server(&args).await.unwrap();
+}
+
+async fn setup_pprof() {
+  PPROF_GUARD
+    .set(
+      pprof::ProfilerGuardBuilder::default()
+        .frequency(1000)
+        .build()
+        .unwrap(),
+    )
+    .map_err(|_| "Error creating pprof")
+    .expect("Error creating pprof");
+
+  tokio::task::Builder::new()
+    .name("pprof reporter")
+    .spawn(async {
+      loop {
+        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+        let guard = PPROF_GUARD.get().unwrap();
+        let report = guard.report().build().unwrap();
+        let file = std::fs::File::create("flamegraph.svg").unwrap();
+        report.flamegraph(file).unwrap();
+      }
+    })
+    .unwrap();
 }
 
 fn setup_tracing(args: &Cli) {

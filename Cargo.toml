@@ -7,6 +7,7 @@ resolver = "2"
 [workspace.dependencies]
 clap = { version = "4.5.0", features = ["derive"] }
 color-eyre = "0.6.2"
+pprof = { version = "0.13.0", features = ["flamegraph"] }
 rand = "0.8.5"
 rmp-serde = "1.1.2"
 serde = { version = "1.0.196", features = ["derive"] }
