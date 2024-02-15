@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::io::Cursor;
 use std::io::Read;
 use std::io::Write;
 
@@ -27,7 +28,8 @@ impl Display for Error {
 impl std::error::Error for Error {}
 
 pub fn serialize(message: &MatchmakeProtocolMessage) -> Result<Vec<u8>> {
-  let mut buf = VecWriter::new(4);
+  let mut buf = Cursor::new(Vec::new());
+  buf.set_position(4);
 
   // Split between two buffers, size and payload.
   let mut serializer = rmp_serde::Serializer::new(&mut buf);
@@ -64,16 +66,16 @@ pub async fn deserialize_async<AR: AsyncRead + Unpin>(
 }
 
 pub fn deserialize_sync<R: Read>(source: &mut R) -> Result<MatchmakeProtocolMessage> {
-  let size: u32 = 0;
+  let mut size_buf = [0u8; 4];
   source
-    .read_exact(&mut size.to_le_bytes())
+    .read_exact(&mut size_buf)
     .map_err(|e| Error::DeserializeError(format!("could not read size: {:?}", e)))?;
+  let size = u32::from_be_bytes(size_buf);
 
   let mut buffer = vec![0; size as usize];
   source
     .read_exact(&mut buffer)
     .map_err(|e| Error::DeserializeError(format!("could not message into buffer: {:?}", e)))?;
-  println!("size: {} buffer: {:?}", size, buffer);
   let message: MatchmakeProtocolMessage = rmp_serde::from_slice(&buffer)
     .map_err(|e| Error::DeserializeError(format!("could not rmp_serde deserialize: {:?}", e)))?;
   Ok(message)
@@ -101,42 +103,6 @@ pub struct User(Uuid);
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GameServerInfo {
   pub id: Uuid,
-}
-
-#[derive(Clone, Debug)]
-struct VecWriter {
-  position: usize,
-  inner: Vec<u8>,
-}
-
-impl VecWriter {
-  fn new(offset: usize) -> Self {
-    VecWriter {
-      position: offset,
-      inner: Vec::new(),
-    }
-  }
-
-  fn into_inner(self) -> Vec<u8> {
-    self.inner
-  }
-}
-
-impl Write for VecWriter {
-  fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-    if self.position + buf.len() > self.inner.len() {
-      self.inner.resize(self.position + buf.len(), 0);
-    }
-
-    let end = self.position + buf.len();
-    self.inner[self.position..end].copy_from_slice(buf);
-    self.position = end;
-    Ok(buf.len())
-  }
-
-  fn flush(&mut self) -> std::io::Result<()> {
-    Ok(())
-  }
 }
 
 #[cfg(test)]
