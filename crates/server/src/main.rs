@@ -153,9 +153,8 @@ async fn handle_client_connection(
   loop {
     let message = wire_protocol::deserialize_async(&mut socket).await?;
     if let Continue::No = handle_message(message, &mut socket, join_match_tx).await? {
-      socket
-        .write_all(&rmp_serde::to_vec(&MatchmakeProtocolResponse::Goodbye)?)
-        .await?;
+      let reply = wire_protocol::serialize(&MatchmakeProtocolResponse::Goodbye)?;
+      socket.write_all(&reply).await?;
       socket.shutdown().await.unwrap();
       return Ok(());
     }
@@ -174,11 +173,8 @@ async fn handle_message(
       join_match_tx.send(req_with_sock)?;
 
       let server = rx.await?;
-      socket
-        .write_all(&rmp_serde::to_vec(
-          &MatchmakeProtocolResponse::GameServerInfo(server),
-        )?)
-        .await?;
+      let reply = wire_protocol::serialize(&MatchmakeProtocolResponse::GameServerInfo(server))?;
+      socket.write_all(&reply).await?;
     }
     MatchmakeProtocolRequest::Disconnect => return Ok(Continue::No),
   }

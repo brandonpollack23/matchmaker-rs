@@ -49,10 +49,12 @@ pub fn serialize<M: Serialize>(message: &M) -> Result<Vec<u8>> {
 pub async fn deserialize_async<M: for<'a> Deserialize<'a>, AR: AsyncRead + Unpin>(
   source: &mut AR,
 ) -> Result<M> {
-  let size = source
-    .read_u32()
+  let mut size_buf = [0u8; 4];
+  source
+    .read_exact(&mut size_buf)
     .await
     .map_err(|e| Error::DeserializeError(format!("could not read size: {:?}", e)))?;
+  let size = u32::from_be_bytes(size_buf);
 
   let mut buffer = vec![0; size as usize];
   source
