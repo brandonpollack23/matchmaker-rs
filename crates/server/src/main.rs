@@ -11,7 +11,7 @@ use tokio::{
 };
 use tracing::{error, info, instrument, Instrument};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
-use wire_protocol::{GameServerInfo, MatchmakeProtocolMessage};
+use wire_protocol::{GameServerInfo, MatchmakeProtocolRequest, MatchmakeProtocolResponse};
 
 use crate::matchmaker::JoinMatchRequestWithReply;
 
@@ -153,27 +153,34 @@ async fn handle_client_connection(
   loop {
     let message = wire_protocol::deserialize_async(&mut socket).await?;
     if let Continue::No = handle_message(message, &mut socket, join_match_tx).await? {
+      socket
+        .write_all(&rmp_serde::to_vec(&MatchmakeProtocolResponse::Goodbye)?)
+        .await?;
+      socket.shutdown().await.unwrap();
       return Ok(());
     }
   }
 }
 
 async fn handle_message(
-  message: MatchmakeProtocolMessage,
+  message: MatchmakeProtocolRequest,
   socket: &mut TcpStream,
   join_match_tx: &UnboundedSender<JoinMatchRequestWithReply>,
 ) -> Result<Continue> {
   match message {
-    MatchmakeProtocolMessage::JoinMatch(request) => {
+    MatchmakeProtocolRequest::JoinMatch(request) => {
       let (tx, rx) = oneshot::channel::<GameServerInfo>();
       let req_with_sock = JoinMatchRequestWithReply { request, tx };
       join_match_tx.send(req_with_sock)?;
 
       let server = rx.await?;
-      // rmp_serde::encode::write(socket, &server)?;
-      socket.write_all(&rmp_serde::to_vec(&server)?).await?;
+      socket
+        .write_all(&rmp_serde::to_vec(
+          &MatchmakeProtocolResponse::GameServerInfo(server),
+        )?)
+        .await?;
     }
-    MatchmakeProtocolMessage::Disconnect => return Ok(Continue::No),
+    MatchmakeProtocolRequest::Disconnect => return Ok(Continue::No),
   }
 
   Ok(Continue::Yes)

@@ -4,7 +4,7 @@ use clap::Parser;
 use color_eyre::Result;
 use rand_distr::Distribution;
 use tokio::{io::AsyncWriteExt, sync::OnceCell};
-use tracing::{debug, info, instrument, trace};
+use tracing::{debug, info, instrument};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 use uuid::Uuid;
 
@@ -59,17 +59,30 @@ async fn simulate_client(server_address: &str) -> Result<()> {
   let mut stream = tokio::net::TcpStream::connect(server_address).await?;
 
   let message =
-    wire_protocol::MatchmakeProtocolMessage::JoinMatch(wire_protocol::JoinMatchRequest {
+    wire_protocol::MatchmakeProtocolRequest::JoinMatch(wire_protocol::JoinMatchRequest {
       user: wire_protocol::User(Uuid::new_v4()),
     });
   let buffer = wire_protocol::serialize(&message)?;
 
   stream.write_all(&buffer).await?;
 
-  let server_reply: wire_protocol::GameServerInfo =
+  let server_reply: wire_protocol::MatchmakeProtocolResponse =
     wire_protocol::deserialize_async(&mut stream).await?;
 
   info!("Server replied with: {:?}", server_reply);
+
+  let buffer = wire_protocol::serialize(&wire_protocol::MatchmakeProtocolRequest::Disconnect)?;
+  stream.write_all(&buffer).await?;
+
+  let goodbye_reply: wire_protocol::MatchmakeProtocolResponse =
+    wire_protocol::deserialize_async(&mut stream).await?;
+
+  info!(
+    "Server closed it's end of the connection: {:?}",
+    goodbye_reply
+  );
+
+  stream.shutdown().await?;
 
   Ok(())
 }

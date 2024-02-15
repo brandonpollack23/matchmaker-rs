@@ -82,9 +82,15 @@ pub fn deserialize_sync<M: for<'a> Deserialize<'a>, R: Read>(source: &mut R) -> 
 
 /// Wire Protocol messages.
 #[derive(PartialEq, Eq, Serialize, Deserialize, Debug)]
-pub enum MatchmakeProtocolMessage {
+pub enum MatchmakeProtocolRequest {
   JoinMatch(JoinMatchRequest),
   Disconnect,
+}
+
+#[derive(PartialEq, Eq, Serialize, Deserialize, Debug)]
+pub enum MatchmakeProtocolResponse {
+  GameServerInfo(GameServerInfo),
+  Goodbye,
 }
 
 /// Protocol message representing a request to join a match, contains all the
@@ -101,7 +107,7 @@ pub struct JoinMatchRequest {
 #[derive(PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub struct User(pub Uuid);
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct GameServerInfo {
   pub id: Uuid,
 }
@@ -115,24 +121,24 @@ mod tests {
   #[test]
   fn test_serialize_sync() {
     let uuid = Uuid::new_v4();
-    let message = MatchmakeProtocolMessage::JoinMatch(JoinMatchRequest { user: User(uuid) });
+    let message = MatchmakeProtocolRequest::JoinMatch(JoinMatchRequest { user: User(uuid) });
 
     let buf = serialize(&message).unwrap();
 
     let mut cursor = Cursor::new(buf);
-    let message_readback: MatchmakeProtocolMessage = deserialize_sync(&mut cursor).unwrap();
+    let message_readback: MatchmakeProtocolRequest = deserialize_sync(&mut cursor).unwrap();
     assert_eq!(message_readback, message);
   }
 
   #[tokio::test]
   async fn test_serialize_async() {
     let uuid = Uuid::new_v4();
-    let message = MatchmakeProtocolMessage::JoinMatch(JoinMatchRequest { user: User(uuid) });
+    let message = MatchmakeProtocolRequest::JoinMatch(JoinMatchRequest { user: User(uuid) });
 
     let buf = serialize(&message).unwrap();
 
     let mut cursor = Cursor::new(buf);
-    let message_readback: MatchmakeProtocolMessage = deserialize_async(&mut cursor).await.unwrap();
+    let message_readback: MatchmakeProtocolRequest = deserialize_async(&mut cursor).await.unwrap();
     assert_eq!(message_readback, message);
   }
 }
