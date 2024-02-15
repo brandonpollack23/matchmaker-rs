@@ -1,10 +1,7 @@
-use std::{cell::OnceCell, sync::OnceLock};
-
 use clap::Parser;
 use color_eyre::Result;
 use game_server_service::GameServerServiceTypes;
 use matchmaker::UserAggregatorModeCli;
-use pprof::ProfilerGuard;
 use tokio::{
   io::AsyncWriteExt,
   net::{TcpListener, TcpStream},
@@ -17,6 +14,9 @@ use tracing::{debug, error, info, instrument, Instrument};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 use wire_protocol::{GameServerInfo, MatchmakeProtocolRequest, MatchmakeProtocolResponse};
 
+#[cfg(feature = "pprof")]
+use pprof::ProfilerGuard;
+
 use crate::matchmaker::JoinMatchRequestWithReply;
 
 mod game_server_service;
@@ -24,6 +24,7 @@ mod matchmaker;
 
 // TODO MAIN GOALS: profile with a perf based tool
 // TODO MAIN GOALS: trace with tracy, OTel/Jaeger, Chrome/Perfetto.
+// TODO MAIN GOALS: add OTEL metrics https://github.com/open-telemetry/opentelemetry-rust/blob/main/examples/metrics-basic/src/main.rs
 // TODO MAIN GOALS: redis distributed feature version and docker compose to
 // stand up.
 
@@ -50,7 +51,8 @@ struct Cli {
   /// Whether to use a local or redis based distributed user aggregator.
   #[arg(short = 'm', long, default_value = "local")]
   user_aggregator_mode: UserAggregatorModeCli,
-  /// Redis port to use.  Only read when [Cli::user_aggregator_mode] is set to redis.
+  /// Redis port to use.  Only read when [Cli::user_aggregator_mode] is set to
+  /// redis.
   #[arg(long, default_value = "6379")]
   redis_port: Option<u16>,
   #[arg(short = 's', long, default_value = "60")]
@@ -62,7 +64,6 @@ struct Cli {
 
 #[tokio::main]
 async fn main() {
-  #[cfg(feature = "pprof")]
   setup_pprof().await;
 
   // Setup pretty error handling.
@@ -77,6 +78,7 @@ async fn main() {
   run_server(&args).await.unwrap();
 }
 
+#[cfg(feature = "pprof")]
 async fn setup_pprof() {
   PPROF_GUARD
     .set(
@@ -102,8 +104,11 @@ async fn setup_pprof() {
     .unwrap();
 }
 
+#[cfg(not(feature = "pprof"))]
+async fn setup_pprof() {}
+
 fn setup_tracing(args: &Cli) {
-  tracing_subscriber::registry()
+  let tracing = tracing_subscriber::registry()
     .with(
       tracing_subscriber::fmt::layer()
         .compact()
@@ -117,8 +122,20 @@ fn setup_tracing(args: &Cli) {
       Some(console_subscriber::spawn())
     } else {
       None
-    })
-    .init();
+    });
+
+  #[cfg(feature = "otel")]
+  let tracing = {
+    let tracer = opentelemetry_jaeger::new_agent_pipeline()
+      .with_service_name("matchmaker-rs")
+      .install_simple()
+      .unwrap();
+    let otel = tracing_opentelemetry::layer().with_tracer(tracer);
+
+    tracing.with(otel)
+  };
+
+  tracing.init();
 }
 
 #[instrument]

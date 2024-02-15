@@ -9,6 +9,9 @@ COMMAND=$1
 
 if [ -z "$COMMAND" ] || [ "$COMMAND" = "up" ]; then
   docker-compose -f deployment/docker-compose/docker-compose.yml -f deployment/docker-compose/docker-compose.dev.yml up --build -d
+
+  echo "Refer to the following table for the running containers ports:"
+  docker container ls --format "table {{.Names}}\t{{.Ports}}" -a
 fi
 
 if [ "$COMMAND" = "down" ]; then

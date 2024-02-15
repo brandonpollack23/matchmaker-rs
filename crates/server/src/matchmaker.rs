@@ -88,7 +88,7 @@ async fn user_aggregator(
           error!("failed to send game request: {:?}", err)
         };
 
-        info!("Users still waiting for a game: {}", matchmake_requests.len());
+        debug!("Users still waiting for a game: {}", matchmake_requests.len());
       }
     }
   }

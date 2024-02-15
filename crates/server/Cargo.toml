@@ -4,18 +4,23 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
+default = ["otel"]
+otel = ["dep:opentelemetry", "dep:opentelemetry-jaeger", "dep:tracing-opentelemetry"]
 pprof = ["dep:pprof"]
 
 [dependencies]
 clap = { workspace = true }
 color-eyre = { workspace = true }
 console-subscriber = { version = "0.2.0", features = ["parking_lot"] }
+opentelemetry = { workspace = true, optional = true }
+opentelemetry-jaeger = { workspace = true, optional = true}
 pprof = { workspace = true, optional = true }
 redis = "0.24.0"
 rmp-serde = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+tracing-opentelemetry = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true }
 uuid = { workspace = true }
 wire_protocol = { path = "../wire_protocol" }
