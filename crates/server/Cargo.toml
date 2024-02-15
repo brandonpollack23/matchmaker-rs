@@ -15,6 +15,3 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 uuid = { workspace = true }
 wire_protocol = { path = "../wire_protocol" }
-
-[profile.dev.package.backtrace]
-opt-level = 3
