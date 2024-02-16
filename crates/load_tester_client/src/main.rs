@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use clap::Parser;
 use color_eyre::Result;
+use rand::Rng;
 use rand_distr::Distribution;
 use tokio::{io::AsyncWriteExt, sync::OnceCell};
 use tracing::{debug, info, instrument};
@@ -45,13 +46,21 @@ async fn main() {
 
   let mut rng = rand::thread_rng();
   let dist = rand_distr::SkewNormal::new(200f32, 200f32, 0f32).unwrap();
-  for _ in 0..ARGS.get().unwrap().number_of_clients {
-    tokio::spawn(simulate_client(&ARGS.get().unwrap().server_address));
+  let mut spawned = 0;
+  while spawned < ARGS.get().unwrap().number_of_clients {
+    let spawn_count = rng.gen_range(1..20);
+    for _ in 0..spawn_count {
+      tokio::spawn(simulate_client(&ARGS.get().unwrap().server_address));
+    }
+    spawned += spawn_count;
 
     let sleep_time = dist.sample(&mut rng).max(0f32);
     debug!("Sleeping for {}ms", sleep_time);
     tokio::time::sleep(Duration::from_millis(sleep_time as u64)).await;
   }
+
+  // Hack to keep the program running.
+  tokio::time::sleep(Duration::from_secs(60)).await;
 }
 
 #[instrument]

@@ -6,6 +6,7 @@ edition = "2021"
 [features]
 default = []
 otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:tracing-opentelemetry"]
+tracy = ["dep:tracing-tracy"]
 pprof = ["dep:pprof"]
 
 [dependencies]
@@ -24,5 +25,6 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-opentelemetry = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true }
+tracing-tracy = { workspace = true, optional = true }
 uuid = { workspace = true }
 wire_protocol = { path = "../wire_protocol" }

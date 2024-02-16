@@ -2,8 +2,11 @@ use clap::Parser;
 use color_eyre::Result;
 use game_server_service::GameServerServiceTypes;
 use matchmaker::UserAggregatorModeCli;
+#[cfg(feature = "otel")]
 use opentelemetry::KeyValue;
+#[cfg(feature = "otel")]
 use opentelemetry_otlp::WithExportConfig;
+#[cfg(feature = "otel")]
 use opentelemetry_sdk::{propagation::TraceContextPropagator, trace, Resource};
 use tokio::{
   io::AsyncWriteExt,
@@ -27,8 +30,7 @@ use crate::matchmaker::JoinMatchRequestWithReply;
 mod game_server_service;
 mod matchmaker;
 
-// TODO MAIN GOALS: profile with a perf based tool
-// TODO MAIN GOALS: trace with tracy, OTel/Jaeger, Chrome/Perfetto.
+// TODO MAIN GOALS: trace with OTel/Jaeger, Chrome/Perfetto.
 // TODO MAIN GOALS: add OTEL metrics https://github.com/open-telemetry/opentelemetry-rust/blob/main/examples/metrics-basic/src/main.rs
 // TODO MAIN GOALS: redis distributed feature version and docker compose to
 // stand up.
@@ -164,6 +166,9 @@ fn setup_tracing(args: &Cli) -> Result<()> {
 
     tracing_subscriber.with(otel)
   };
+
+  #[cfg(feature = "tracy")]
+  let tracing_subscriber = { tracing_subscriber.with(tracing_tracy::TracyLayer::default()) };
 
   tracing::subscriber::set_global_default(tracing_subscriber).unwrap();
 
