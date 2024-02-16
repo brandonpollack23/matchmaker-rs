@@ -1,7 +1,3 @@
 {
-  "rust-analyzer.cargo.features": [
-    "matchmaker-rs/pprof",
-    "matchmaker-rs/tracy",
-    "matchmaker-rs/otel"
-  ]
+  "rust-analyzer.cargo.features": ["matchmaker-rs/pprof", "matchmaker-rs/tracy", "matchmaker-rs/otel", "matchmaker-rs/perfetto"]
 }

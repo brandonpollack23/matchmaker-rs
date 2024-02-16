@@ -17,6 +17,7 @@ rmp-serde = "1.1.2"
 serde = { version = "1.0.196", features = ["derive"] }
 tokio = { version = "1.36.0", features = ["full", "tracing"] }
 tracing = "0.1.40"
+tracing-chrome = { verstion = "0.7.1" }
 tracing-opentelemetry = "0.22.0"
 tracing-tracy = { version = "0.11.0" }
 tracing-subscriber = "0.3.18"

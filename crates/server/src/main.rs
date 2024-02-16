@@ -22,6 +22,7 @@ use wire_protocol::{GameServerInfo, MatchmakeProtocolRequest, MatchmakeProtocolR
 
 #[cfg(feature = "pprof")]
 use pprof::ProfilerGuard;
+// enable on pprof or perfetto
 #[cfg(feature = "pprof")]
 use std::sync::OnceLock;
 
@@ -168,7 +169,20 @@ fn setup_tracing(args: &Cli) -> Result<()> {
   };
 
   #[cfg(feature = "tracy")]
-  let tracing_subscriber = { tracing_subscriber.with(tracing_tracy::TracyLayer::default()) };
+  let tracing_subscriber = tracing_subscriber.with(tracing_tracy::TracyLayer::default());
+
+  #[cfg(feature = "perfetto")]
+  let tracing_subscriber = {
+    let (chrome_layer, chrome_guard) = tracing_chrome::ChromeLayerBuilder::new().build();
+    std::thread::Builder::new()
+      .name("chrome-trace-writer".to_string())
+      .spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_secs(5));
+        chrome_guard.flush();
+      })
+      .unwrap();
+    tracing_subscriber.with(chrome_layer)
+  };
 
   tracing::subscriber::set_global_default(tracing_subscriber).unwrap();
 

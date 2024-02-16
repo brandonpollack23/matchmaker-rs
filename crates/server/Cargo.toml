@@ -6,6 +6,7 @@ edition = "2021"
 [features]
 default = []
 otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:tracing-opentelemetry"]
+perfetto = ["dep:tracing-chrome"]
 tracy = ["dep:tracing-tracy"]
 pprof = ["dep:pprof"]
 
@@ -23,6 +24,7 @@ rmp-serde = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+tracing-chrome = { workspace = true, optional = true }
 tracing-opentelemetry = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true }
 tracing-tracy = { workspace = true, optional = true }
