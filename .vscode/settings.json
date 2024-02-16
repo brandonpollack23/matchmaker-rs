@@ -1,3 +1,9 @@
 {
-  "rust-analyzer.cargo.features": ["matchmaker-rs/pprof", "matchmaker-rs/tracy", "matchmaker-rs/otel", "matchmaker-rs/perfetto"]
+  "rust-analyzer.cargo.features": [
+    "matchmaker-rs/tracing_flame",
+    "matchmaker-rs/tracing_pprof",
+    "matchmaker-rs/tracing_tracy",
+    "matchmaker-rs/tracing_otel",
+    "matchmaker-rs/tracing_perfetto"
+  ]
 }

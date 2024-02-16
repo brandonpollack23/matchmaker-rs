@@ -17,9 +17,10 @@ rmp-serde = "1.1.2"
 serde = { version = "1.0.196", features = ["derive"] }
 tokio = { version = "1.36.0", features = ["full", "tracing"] }
 tracing = "0.1.40"
-tracing-chrome = { verstion = "0.7.1" }
+tracing-chrome = "0.7.1"
+tracing-flame = "0.2.0"
 tracing-opentelemetry = "0.22.0"
-tracing-tracy = { version = "0.11.0" }
+tracing-tracy = "0.11.0"
 tracing-subscriber = "0.3.18"
 uuid = { version = "1.7.0", features = ["fast-rng", "serde", "v4"] }
 

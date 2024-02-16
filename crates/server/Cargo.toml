@@ -5,10 +5,11 @@ edition = "2021"
 
 [features]
 default = []
-otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:tracing-opentelemetry"]
-perfetto = ["dep:tracing-chrome"]
-tracy = ["dep:tracing-tracy"]
-pprof = ["dep:pprof"]
+tracing_flame = ["dep:tracing-flame"]
+tracing_otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:tracing-opentelemetry"]
+tracing_perfetto = ["dep:tracing-chrome"]
+tracing_tracy = ["dep:tracing-tracy"]
+tracing_pprof = ["dep:pprof"]
 
 [dependencies]
 clap = { workspace = true }
@@ -25,6 +26,7 @@ serde = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-chrome = { workspace = true, optional = true }
+tracing-flame = { workspace = true, optional = true }
 tracing-opentelemetry = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true }
 tracing-tracy = { workspace = true, optional = true }

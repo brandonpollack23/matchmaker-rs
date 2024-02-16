@@ -2,45 +2,34 @@ use clap::Parser;
 use color_eyre::Result;
 use game_server_service::GameServerServiceTypes;
 use matchmaker::UserAggregatorModeCli;
-#[cfg(feature = "otel")]
+#[cfg(feature = "tracing_otel")]
 use opentelemetry::KeyValue;
-#[cfg(feature = "otel")]
+#[cfg(feature = "tracing_otel")]
 use opentelemetry_otlp::WithExportConfig;
-#[cfg(feature = "otel")]
+#[cfg(feature = "tracing_otel")]
 use opentelemetry_sdk::{propagation::TraceContextPropagator, trace, Resource};
-use tokio::{
-  io::AsyncWriteExt,
-  net::{TcpListener, TcpStream},
-  sync::{
-    mpsc::{self, UnboundedSender},
-    oneshot,
-  },
-};
-use tracing::{debug, error, instrument, Instrument};
-use tracing_subscriber::{layer::SubscriberExt, Layer};
-use wire_protocol::{GameServerInfo, MatchmakeProtocolRequest, MatchmakeProtocolResponse};
 
-#[cfg(feature = "pprof")]
+use tracing_subscriber::{layer::SubscriberExt, Layer};
+
+#[cfg(feature = "tracing_pprof")]
 use pprof::ProfilerGuard;
 // enable on pprof or perfetto
-#[cfg(feature = "pprof")]
+#[cfg(feature = "tracing_pprof")]
 use std::sync::OnceLock;
-
-use crate::matchmaker::JoinMatchRequestWithReply;
 
 mod game_server_service;
 mod matchmaker;
+mod server;
 
-// TODO MAIN GOALS: trace with OTel/Jaeger, Chrome/Perfetto.
-// TODO MAIN GOALS: add OTEL metrics https://github.com/open-telemetry/opentelemetry-rust/blob/main/examples/metrics-basic/src/main.rs
 // TODO MAIN GOALS: redis distributed feature version and docker compose to
 // stand up.
+// TODO MAIN GOALS: add OTEL metrics https://github.com/open-telemetry/opentelemetry-rust/blob/main/examples/metrics-basic/src/main.rs
 
 // TODO TESTS: server side
 
 // TODO Docs: clap explanation string
 
-#[cfg(feature = "pprof")]
+#[cfg(feature = "tracing_pprof")]
 static PPROF_GUARD: OnceLock<ProfilerGuard<'static>> = OnceLock::new();
 
 #[derive(clap::Parser, Debug)]
@@ -84,13 +73,13 @@ async fn main() {
 
   setup_tracing(&args).unwrap();
 
-  run_server(&args).await.unwrap();
+  server::run_server(&args).await.unwrap();
 
-  #[cfg(feature = "otel")]
+  #[cfg(feature = "tracing_otel")]
   opentelemetry::global::shutdown_tracer_provider();
 }
 
-#[cfg(feature = "pprof")]
+#[cfg(feature = "tracing_pprof")]
 async fn setup_pprof() {
   PPROF_GUARD
     .set(
@@ -116,12 +105,12 @@ async fn setup_pprof() {
     .unwrap();
 }
 
-#[cfg(not(feature = "pprof"))]
+#[cfg(not(feature = "tracing_pprof"))]
 async fn setup_pprof() {}
 
 fn setup_tracing(args: &Cli) -> Result<()> {
   // Setup propogator so that we can trace across services.
-  #[cfg(feature = "otel")]
+  #[cfg(feature = "tracing_otel")]
   opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
 
   let tracing_subscriber = tracing_subscriber::registry()
@@ -140,7 +129,7 @@ fn setup_tracing(args: &Cli) -> Result<()> {
       None
     });
 
-  #[cfg(feature = "otel")]
+  #[cfg(feature = "tracing_otel")]
   let tracing_subscriber = {
     // TODO add flag for this IP.
     let otlp_exporter = opentelemetry_otlp::new_exporter()
@@ -168,10 +157,25 @@ fn setup_tracing(args: &Cli) -> Result<()> {
     tracing_subscriber.with(otel)
   };
 
-  #[cfg(feature = "tracy")]
+  #[cfg(feature = "tracing_flame")]
+  let tracing_subscriber = {
+    // TODO make this file path a flag
+    let (flame_layer, guard) = tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
+    std::thread::Builder::new()
+      .name("flame-trace-writer".to_string())
+      .spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_secs(5));
+        guard.flush().unwrap();
+      })
+      .unwrap();
+
+    tracing_subscriber.with(flame_layer)
+  };
+
+  #[cfg(feature = "tracing_tracy")]
   let tracing_subscriber = tracing_subscriber.with(tracing_tracy::TracyLayer::default());
 
-  #[cfg(feature = "perfetto")]
+  #[cfg(feature = "tracing_perfetto")]
   let tracing_subscriber = {
     let (chrome_layer, chrome_guard) = tracing_chrome::ChromeLayerBuilder::new().build();
     std::thread::Builder::new()
@@ -187,119 +191,4 @@ fn setup_tracing(args: &Cli) -> Result<()> {
   tracing::subscriber::set_global_default(tracing_subscriber).unwrap();
 
   Ok(())
-}
-
-#[instrument]
-async fn run_server(args: &Cli) -> Result<()> {
-  let listener = TcpListener::bind(format!("127.0.0.1:{}", args.port))
-    .await
-    .unwrap();
-
-  // TODO EXTRA: parallelize this with a tokio::select! macro and a concurrent
-  // vector and benchmark.
-  let (join_match_tx, join_match_rx) = mpsc::unbounded_channel::<JoinMatchRequestWithReply>();
-
-  let game_server_service = game_server_service::from_type(&args.game_server_service);
-
-  let listener = tokio::task::Builder::new()
-    .name("server::listener")
-    .spawn(listen_handler(listener, join_match_tx))?;
-
-  let user_aggregator_mode = match args.user_aggregator_mode {
-    UserAggregatorModeCli::Local => matchmaker::UserAggregatorMode::Local,
-    UserAggregatorModeCli::RedisCluster => {
-      matchmaker::UserAggregatorMode::RedisCluster(args.redis_port.unwrap())
-    }
-  };
-  let matchmaker = tokio::task::Builder::new()
-    .name("matchmaker::supervisor")
-    .spawn(matchmaker::matchmaker(
-      join_match_rx,
-      game_server_service,
-      user_aggregator_mode,
-      args.match_size,
-    ))?;
-
-  tokio::select! {
-    r = listener => {
-      r??;
-    }
-    r = matchmaker => {
-      r??;
-    }
-  };
-
-  Ok(())
-}
-
-#[instrument]
-async fn listen_handler(
-  listener: TcpListener,
-  join_match_tx: UnboundedSender<JoinMatchRequestWithReply>,
-) -> Result<()> {
-  loop {
-    let (socket, addr) = listener.accept().await.unwrap();
-    let span = tracing::info_span!("client_connection", %addr);
-    debug!("accepted connection from: {:?}", addr);
-
-    let tx = join_match_tx.clone();
-    tokio::task::Builder::new()
-      .name(&format!("socket::{addr:?}"))
-      // .instrument(span)
-      .spawn(async move {
-        if let Err(e) = handle_client_connection(socket, &tx).await {
-          error!("client connection error: {:?}", e);
-        }
-
-        debug!("client connection closed: {:?}", addr);
-      }.instrument(span))?;
-  }
-}
-
-/// Handle client connection.
-/// The protocol is byte based.
-/// 4 bytes - payload length N -- this gives us a max length of 4GB
-/// N bytes - payload in the form of a MessagePack object TODO consider changing
-/// to typesafe language agnostic like protobufs or flatpaks or avro.
-#[instrument]
-async fn handle_client_connection(
-  mut socket: TcpStream,
-  join_match_tx: &UnboundedSender<JoinMatchRequestWithReply>,
-) -> Result<()> {
-  loop {
-    let message = wire_protocol::deserialize_async(&mut socket).await?;
-    if let Continue::No = handle_message(message, &mut socket, join_match_tx).await? {
-      let reply = wire_protocol::serialize(&MatchmakeProtocolResponse::Goodbye)?;
-      socket.write_all(&reply).await?;
-      socket.shutdown().await.unwrap();
-      return Ok(());
-    }
-  }
-}
-
-#[instrument]
-async fn handle_message(
-  message: MatchmakeProtocolRequest,
-  socket: &mut TcpStream,
-  join_match_tx: &UnboundedSender<JoinMatchRequestWithReply>,
-) -> Result<Continue> {
-  match message {
-    MatchmakeProtocolRequest::JoinMatch(request) => {
-      let (tx, rx) = oneshot::channel::<GameServerInfo>();
-      let req_with_sock = JoinMatchRequestWithReply { request, tx };
-      join_match_tx.send(req_with_sock)?;
-
-      let server = rx.await?;
-      let reply = wire_protocol::serialize(&MatchmakeProtocolResponse::GameServerInfo(server))?;
-      socket.write_all(&reply).await?;
-    }
-    MatchmakeProtocolRequest::Disconnect => return Ok(Continue::No),
-  }
-
-  Ok(Continue::Yes)
-}
-
-enum Continue {
-  Yes,
-  No,
 }

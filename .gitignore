@@ -2,3 +2,5 @@
 flamegraph.svg
 perf.data
 trace*.json
+tracing.folded
+tracing-flame*.svg

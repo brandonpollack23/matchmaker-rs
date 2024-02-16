@@ -55,7 +55,10 @@ async fn main() {
     spawned += spawn_count;
 
     let sleep_time = dist.sample(&mut rng).max(0f32);
-    debug!("Sleeping for {}ms", sleep_time);
+    debug!(
+      "Spawned {} reqeuests, sleeping for {}ms",
+      spawn_count, sleep_time
+    );
     tokio::time::sleep(Duration::from_millis(sleep_time as u64)).await;
   }
 
