@@ -83,7 +83,7 @@ pub(crate) async fn listen_handler(
       .name(&format!("socket::{addr:?}"))
       // .instrument(span)
       .spawn(async move {
-        if let Err(e) = handle_client_connection(socket, addr.clone(),  &join_match_tx, &cancel_request_tx).await {
+        if let Err(e) = handle_client_connection(socket, addr,  &join_match_tx, &cancel_request_tx).await {
           error!("client connection error: {:?}", e);
         }
 
@@ -109,7 +109,7 @@ pub(crate) async fn handle_client_connection(
     if let Continue::No = handle_message(
       message,
       &mut socket,
-      socket_addr.clone(),
+      socket_addr,
       join_match_tx,
       cancel_request_tx,
     )

@@ -1,5 +1,5 @@
 use std::{
-  collections::{HashMap, VecDeque},
+  collections::VecDeque,
   fmt::{self, Debug, Formatter},
   net::SocketAddr,
   sync::Arc,
@@ -11,7 +11,7 @@ use color_eyre::Result;
 use tokio::sync::{mpsc, oneshot};
 
 use tracing::{debug, error, info, instrument, span, Level};
-use uuid::Uuid;
+
 use wire_protocol::{GameServerInfo, JoinMatchRequest};
 
 use crate::game_server_service::GameServerService;
@@ -74,45 +74,43 @@ async fn user_aggregator(
 
   loop {
     tokio::select! {
-          Some(join_match_request) = join_match_rx.recv() => {
-            let _span = span!(
-              Level::INFO,
-              "matchmake request insertion",
-              ?join_match_request.request
-            )
-            .entered();
+      Some(join_match_request) = join_match_rx.recv() => {
+        let _span = span!(
+          Level::INFO,
+          "matchmake request insertion",
+          ?join_match_request.request
+        )
+        .entered();
 
-            matchmake_requests.push_back(join_match_request);
-          },
+        matchmake_requests.push_back(join_match_request);
+      },
 
-          Some(chan) = request_game_rx.recv() => {
-            let _span = span!(Level::INFO, "matchmake request game").entered();
+      Some(chan) = request_game_rx.recv() => {
+        let _span = span!(Level::INFO, "matchmake request game").entered();
 
-            if let Err(err) = if matchmake_requests.len() >= match_size as usize{
-              let game: Vec<_> = matchmake_requests.drain(0..match_size as usize).collect();
-              chan.send(Some(game))
-            } else {
-              chan.send(None)
-            } {
-              error!("failed to send game request: {:?}", err)
-            };
+        if let Err(err) = if matchmake_requests.len() >= match_size as usize{
+          let game: Vec<_> = matchmake_requests.drain(0..match_size as usize).collect();
+          chan.send(Some(game))
+        } else {
+          chan.send(None)
+        } {
+          error!("failed to send game request: {:?}", err)
+        };
 
-            debug!("Users still waiting for a game: {}", matchmake_requests.len());
-          },
+        debug!("Users still waiting for a game: {}", matchmake_requests.len());
+      },
 
-          Some(socket_addr) = cancel_request_rx.recv() => {
-            let _span = span!(Level::INFO, "matchmake request cancel").entered();
+      Some(socket_addr) = cancel_request_rx.recv() => {
+        let _span = span!(Level::INFO, "matchmake request cancel").entered();
 
-            matchmake_requests.retain(| r| if r.socket_addr == socket_addr {
-              info!("cancelling matchmake request for: {:?}", r.request.user);
-              false
-            } else {
-              true
-            });
-
-    // TODO complete
-          }
-        }
+        matchmake_requests.retain(| r| if r.socket_addr == socket_addr {
+          info!("cancelling matchmake request for: {:?}", r.request.user);
+          false
+        } else {
+          true
+        });
+      }
+    }
   }
 }
 
