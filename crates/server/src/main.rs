@@ -25,8 +25,8 @@ mod server;
 
 // TODO MAIN GOALS: add OTEL metrics https://github.com/open-telemetry/opentelemetry-rust/blob/main/examples/metrics-basic/src/main.rs
 // TODO MAIN GOALS: create a load test on GCP using pulumi
-// TODO MAIN GOALS: redis distributed feature version and docker compose to
-// stand up.
+// TODO MAIN GOALS: kafka/redpanda (redis streams are one key so will be
+// overloaded) distributed feature version and docker compose to stand up.
 
 #[cfg(feature = "tracing_pprof")]
 static PPROF_GUARD: OnceLock<ProfilerGuard<'static>> = OnceLock::new();

@@ -176,3 +176,87 @@ pub enum UserAggregatorModeCli {
 pub enum UserAggregatorMode {
   Local,
 }
+
+#[cfg(test)]
+mod tests {
+  use uuid::Uuid;
+  use wire_protocol::User;
+
+  use super::*;
+
+  fn setup_matchmaker() -> (
+    (
+      mpsc::UnboundedSender<JoinMatchRequestWithReply>,
+      mpsc::UnboundedReceiver<JoinMatchRequestWithReply>,
+    ),
+    (
+      mpsc::UnboundedSender<SocketAddr>,
+      mpsc::UnboundedReceiver<SocketAddr>,
+    ),
+    Arc<dyn GameServerService>,
+    UserAggregatorMode,
+  ) {
+    let (join_match_tx, join_match_rx) = mpsc::unbounded_channel::<JoinMatchRequestWithReply>();
+    let (cancel_request_tx, cancel_request_rx) =
+      tokio::sync::mpsc::unbounded_channel::<SocketAddr>();
+
+    let game_server_service =
+      crate::game_server_service::from_type(&crate::GameServerServiceTypes::TestGameServerService);
+    let user_aggregator_mode = UserAggregatorMode::Local;
+
+    (
+      (join_match_tx, join_match_rx),
+      (cancel_request_tx, cancel_request_rx),
+      game_server_service,
+      user_aggregator_mode,
+    )
+  }
+
+  #[tokio::test]
+  async fn matchmaker_aggregates_up_to_match_size() {
+    // Setup matchmaker
+    let match_size = 5;
+    let (
+      (join_match_tx, join_match_rx),
+      (_cancel_request_tx, cancel_request_rx),
+      game_server_service,
+      user_aggregator_mode,
+    ) = setup_matchmaker();
+    let _matchmaker = tokio::spawn(matchmaker(
+      join_match_rx,
+      cancel_request_rx,
+      game_server_service,
+      user_aggregator_mode,
+      match_size,
+    ));
+
+    // Send join match requests and ensure the join match notification is sent only once per game_size batch.
+    for _ in 0..5 {
+      let mut join_match_notifications = Vec::new();
+      for i in 0..match_size {
+        let (tx, rx) = oneshot::channel();
+        join_match_notifications.push(rx);
+
+        let join_match_req = JoinMatchRequestWithReply {
+          socket_addr: SocketAddr::new([123, 123, 255, 255].into(), 1234),
+          request: JoinMatchRequest {
+            user: User(Uuid::new_v4()),
+          },
+          tx,
+        };
+
+        join_match_tx.send(join_match_req).unwrap();
+
+        if i != match_size - 1 {
+          // Not a full game yet, should not have a notification.
+          assert!(join_match_notifications[i as usize].try_recv().is_err());
+        }
+      }
+
+      // Full game, should have a notification.
+      for rx in join_match_notifications {
+        assert!(matches!(rx.await, Ok(Some(GameServerInfo { .. }))));
+      }
+    }
+  }
+}
