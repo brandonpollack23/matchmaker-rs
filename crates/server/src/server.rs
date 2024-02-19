@@ -1,25 +1,18 @@
 use color_eyre::Result;
 use std::net::SocketAddr;
-use tokio::io::AsyncWriteExt;
-use tokio::net::TcpListener;
-use tokio::net::TcpStream;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::oneshot;
-use tracing::debug;
-use tracing::error;
-use tracing::info;
-use tracing::instrument;
-use tracing::Instrument;
-use wire_protocol::GameServerInfo;
-use wire_protocol::MatchmakeProtocolRequest;
-use wire_protocol::MatchmakeProtocolResponse;
+use tokio::{
+  io::AsyncWriteExt,
+  net::{TcpListener, TcpStream},
+  sync::{mpsc, mpsc::UnboundedSender, oneshot},
+};
+use tracing::{debug, error, info, instrument, Instrument};
+use wire_protocol::{GameServerInfo, MatchmakeProtocolRequest, MatchmakeProtocolResponse};
 
-use crate::game_server_service;
-use crate::matchmaker;
-use crate::matchmaker::JoinMatchRequestWithReply;
-use crate::matchmaker::UserAggregatorModeCli;
-use crate::Cli;
+use crate::{
+  game_server_service, matchmaker,
+  matchmaker::{JoinMatchRequestWithReply, UserAggregatorModeCli},
+  Cli,
+};
 
 #[instrument]
 pub(crate) async fn run_server(args: &Cli) -> Result<()> {
@@ -72,7 +65,6 @@ pub(crate) async fn listen_handler(
   loop {
     let (socket, addr) = listener.accept().await.unwrap();
     let span = tracing::info_span!("client_connection", %addr);
-    debug!("accepted connection from: {:?}", addr);
 
     let join_match_tx = join_match_tx.clone();
     let cancel_request_tx = cancel_request_tx.clone();
@@ -101,6 +93,14 @@ pub(crate) async fn handle_client_connection(
   join_match_tx: &mpsc::UnboundedSender<JoinMatchRequestWithReply>,
   cancel_request_tx: &mpsc::UnboundedSender<SocketAddr>,
 ) -> Result<()> {
+  info!(
+    counter.active_connections = 1,
+    monotonic_counter.total_connections = 1,
+    "accepted connection from: {:?}",
+    socket_addr
+  );
+
+  let client_start_time = std::time::Instant::now();
   loop {
     let message = wire_protocol::deserialize_async(&mut socket).await?;
     if let Continue::No = handle_message(
@@ -115,6 +115,13 @@ pub(crate) async fn handle_client_connection(
       let reply = wire_protocol::serialize(&MatchmakeProtocolResponse::Goodbye)?;
       socket.write_all(&reply).await?;
       socket.shutdown().await.unwrap();
+
+      info!(
+        monotonic.active_connections = -1,
+        histogram.client_connection_duration_ms = client_start_time.elapsed().as_millis() as u64,
+        "closed connection from: {:?}",
+        socket_addr
+      );
       return Ok(());
     }
   }

@@ -67,6 +67,7 @@ async fn user_aggregator(
   match_size: u32,
 ) -> Result<()> {
   let mut matchmake_requests: VecDeque<JoinMatchRequestWithReply> = VecDeque::new();
+  let mut time_between_game_matches = tokio::time::Instant::now();
 
   loop {
     tokio::select! {
@@ -84,13 +85,20 @@ async fn user_aggregator(
       Some(chan) = request_game_rx.recv() => {
         let _span = span!(Level::INFO, "matchmake request game").entered();
 
-        if let Err(err) = if matchmake_requests.len() >= match_size as usize{
+        if let Err(err) = if matchmake_requests.len() >= match_size as usize {
           let game: Vec<_> = matchmake_requests.drain(0..match_size as usize).collect();
-          chan.send(Some(game))
+          let r = chan.send(Some(game));
+          info!(
+            monotonic_counter.games_created = 1,
+            histogram.time_between_game_matches = time_between_game_matches.elapsed().as_millis() as u64,
+            "game created"
+          );
+          time_between_game_matches = tokio::time::Instant::now();
+          r
         } else {
           chan.send(None)
         } {
-          error!("failed to send game request: {:?}", err)
+          error!(monotonic_counter.failed_game_creations = 1, "failed to send game request: {:?}", err)
         };
 
         debug!("Users still waiting for a game: {}", matchmake_requests.len());
@@ -230,7 +238,8 @@ mod tests {
       match_size,
     ));
 
-    // Send join match requests and ensure the join match notification is sent only once per game_size batch.
+    // Send join match requests and ensure the join match notification is sent only
+    // once per game_size batch.
     for _ in 0..5 {
       let mut join_match_notifications = Vec::new();
       for i in 0..match_size {

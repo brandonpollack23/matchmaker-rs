@@ -21,6 +21,8 @@ When you're done you can tear it all down with
 
 There are various tracing_* features to enable, give them a try.
 
+OpenTelemetry (for metrics and logs/spans) is on by default.
+
 The flame one specifically needs to be processed by inferno, which is a separate tool.
 
 ```bash
