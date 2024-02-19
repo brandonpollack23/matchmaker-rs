@@ -21,9 +21,8 @@ mod game_server_service;
 mod matchmaker;
 mod server;
 
-// TODO TESTS: server side
-
 // TODO MAIN GOALS: add OTEL metrics https://github.com/open-telemetry/opentelemetry-rust/blob/main/examples/metrics-basic/src/main.rs
+// https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-otel
 // TODO MAIN GOALS: create a load test on GCP using pulumi
 // TODO MAIN GOALS: kafka/redpanda (redis streams are one key so will be
 // overloaded) distributed feature version and docker compose to stand up.
