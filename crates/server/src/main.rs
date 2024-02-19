@@ -130,21 +130,20 @@ fn setup_tracing(args: &Cli) -> Result<()> {
 
   #[cfg(feature = "tracing_otel")]
   let tracing_subscriber = {
+    let otel_resource = Resource::new(vec![KeyValue::new(
+      opentelemetry_semantic_conventions::resource::SERVICE_NAME,
+      "matchmaker-rs",
+    )]);
+
     let otlp_exporter = opentelemetry_otlp::new_exporter()
       .tonic()
       .with_endpoint(&args.oltp_endpoint);
-    // Then pass it into pipeline builder
     let tracer = opentelemetry_otlp::new_pipeline()
       .tracing()
       .with_exporter(otlp_exporter)
-      .with_trace_config(
-        trace::config().with_resource(Resource::new(vec![KeyValue::new(
-          opentelemetry_semantic_conventions::resource::SERVICE_NAME,
-          "matchmaker-rs",
-        )])),
-      )
+      .with_trace_config(trace::config().with_resource(otel_resource.clone()))
       .install_batch(opentelemetry_sdk::runtime::Tokio)?;
-    let otel = tracing_opentelemetry::layer()
+    let otel_tracer = tracing_opentelemetry::layer()
       .with_tracer(tracer)
       .with_filter(
         tracing_subscriber::filter::EnvFilter::try_from_default_env().unwrap_or(
@@ -152,7 +151,21 @@ fn setup_tracing(args: &Cli) -> Result<()> {
         ),
       );
 
-    tracing_subscriber.with(otel)
+    // The following links explains how to add metrics using tracing events.
+    // Add monotonic_counter., counter., and histogram as a prefix to events and
+    // the value is how much to change by.
+    // https://docs.rs/tracing-opentelemetry/latest/tracing_opentelemetry/struct.MetricsLayer.html
+    let otlp_exporter = opentelemetry_otlp::new_exporter()
+      .tonic()
+      .with_endpoint(&args.oltp_endpoint);
+    let meter = opentelemetry_otlp::new_pipeline()
+      .metrics(opentelemetry_sdk::runtime::Tokio)
+      .with_exporter(otlp_exporter)
+      .with_resource(otel_resource)
+      .build()?;
+    let otel_metrics = tracing_opentelemetry::MetricsLayer::new(meter);
+
+    tracing_subscriber.with(otel_tracer).with(otel_metrics)
   };
 
   #[cfg(feature = "tracing_flame")]

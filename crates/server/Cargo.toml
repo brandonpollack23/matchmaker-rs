@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = []
+default = ["tracing_otel"]
 tracing_flame = ["dep:tracing-flame"]
 tracing_otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:tracing-opentelemetry"]
 tracing_perfetto = ["dep:tracing-chrome"]
