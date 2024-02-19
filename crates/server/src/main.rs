@@ -21,13 +21,12 @@ mod game_server_service;
 mod matchmaker;
 mod server;
 
-// TODO MAIN GOALS: redis distributed feature version and docker compose to
-// stand up.
-// TODO MAIN GOALS: add OTEL metrics https://github.com/open-telemetry/opentelemetry-rust/blob/main/examples/metrics-basic/src/main.rs
-
 // TODO TESTS: server side
 
-// TODO Docs: clap explanation string
+// TODO MAIN GOALS: add OTEL metrics https://github.com/open-telemetry/opentelemetry-rust/blob/main/examples/metrics-basic/src/main.rs
+// TODO MAIN GOALS: create a load test on GCP using pulumi
+// TODO MAIN GOALS: redis distributed feature version and docker compose to
+// stand up.
 
 #[cfg(feature = "tracing_pprof")]
 static PPROF_GUARD: OnceLock<ProfilerGuard<'static>> = OnceLock::new();
@@ -48,16 +47,17 @@ struct Cli {
   /// Whether to use a local or redis based distributed user aggregator.
   #[arg(short = 'm', long, default_value = "local")]
   user_aggregator_mode: UserAggregatorModeCli,
-  // TODO make this whole IP.
-  /// Redis port to use.  Only read when [Cli::user_aggregator_mode] is set to
-  /// redis.
-  #[arg(long, default_value = "6379")]
-  redis_port: Option<u16>,
   #[arg(short = 's', long, default_value = "60")]
   match_size: u32,
   /// Enable the tokio console (see <https://github.com/tokio-rs/console>)
   #[arg(short, long, default_value = "false")]
   tokio_console: bool,
+  /// The oltp collector server (Probably Jaeger all in one...or a cloud something)
+  #[arg(long, default_value = "http://localhost:4317")]
+  oltp_endpoint: String,
+  #[cfg(feature = "tracing_flame")]
+  #[arg(short, long, default_value = "./tracing.folded")]
+  tracing_flame_output_file: String,
 }
 
 #[tokio::main]
@@ -131,10 +131,9 @@ fn setup_tracing(args: &Cli) -> Result<()> {
 
   #[cfg(feature = "tracing_otel")]
   let tracing_subscriber = {
-    // TODO add flag for this IP.
     let otlp_exporter = opentelemetry_otlp::new_exporter()
       .tonic()
-      .with_endpoint("http://localhost:4317");
+      .with_endpoint(&args.oltp_endpoint);
     // Then pass it into pipeline builder
     let tracer = opentelemetry_otlp::new_pipeline()
       .tracing()
@@ -159,8 +158,8 @@ fn setup_tracing(args: &Cli) -> Result<()> {
 
   #[cfg(feature = "tracing_flame")]
   let tracing_subscriber = {
-    // TODO make this file path a flag
-    let (flame_layer, guard) = tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
+    let (flame_layer, guard) =
+      tracing_flame::FlameLayer::with_file(&args.tracing_flame_output_file).unwrap();
     std::thread::Builder::new()
       .name("flame-trace-writer".to_string())
       .spawn(move || loop {

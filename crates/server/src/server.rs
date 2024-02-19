@@ -40,9 +40,6 @@ pub(crate) async fn run_server(args: &Cli) -> Result<()> {
 
   let user_aggregator_mode = match args.user_aggregator_mode {
     UserAggregatorModeCli::Local => matchmaker::UserAggregatorMode::Local,
-    UserAggregatorModeCli::RedisCluster => {
-      matchmaker::UserAggregatorMode::RedisCluster(args.redis_port.unwrap())
-    }
   };
   let matchmaker = tokio::task::Builder::new()
     .name("matchmaker::supervisor")

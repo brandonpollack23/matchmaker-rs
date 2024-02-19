@@ -41,10 +41,6 @@ pub async fn matchmaker(
         cancel_request_rx,
         match_size,
       ))?,
-    UserAggregatorMode::RedisCluster(_port) => {
-      // TODO MAIN GOALS
-      todo!("implement RedisCluster user aggregator")
-    }
   };
 
   let matchmaker = tokio::task::Builder::new()
@@ -174,12 +170,9 @@ impl Debug for JoinMatchRequestWithReply {
 #[derive(Debug, Clone, ValueEnum)]
 pub enum UserAggregatorModeCli {
   Local,
-  #[clap(name = "redis")]
-  RedisCluster,
 }
 
 #[derive(Debug, Clone)]
 pub enum UserAggregatorMode {
   Local,
-  RedisCluster(u16),
 }
