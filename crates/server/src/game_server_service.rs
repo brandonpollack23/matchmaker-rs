@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use clap::ValueEnum;
@@ -5,7 +6,8 @@ use color_eyre::Result;
 use uuid::Uuid;
 use wire_protocol::GameServerInfo;
 
-pub trait GameServerService: Sync + Send + std::fmt::Debug {
+// TODO NOW make async
+pub trait GameServerService: Sync + Send + Debug {
   fn acquire_game_server(&self) -> Result<GameServerInfo>;
 }
 

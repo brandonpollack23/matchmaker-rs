@@ -1,7 +1,7 @@
 use clap::Parser;
 use color_eyre::Result;
 use game_server_service::GameServerServiceTypes;
-use matchmaker::UserAggregatorModeCli;
+use matchmaker::UserAggregatorMode;
 #[cfg(feature = "tracing_otel")]
 use opentelemetry::KeyValue;
 #[cfg(feature = "tracing_otel")]
@@ -19,10 +19,9 @@ use std::sync::OnceLock;
 
 mod game_server_service;
 mod matchmaker;
+mod matchmaking_queue_service;
 mod server;
 
-// TODO MAIN GOALS: add OTEL metrics https://github.com/open-telemetry/opentelemetry-rust/blob/main/examples/metrics-basic/src/main.rs
-// https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-otel
 // TODO MAIN GOALS: create a load test on GCP using pulumi
 // TODO MAIN GOALS: kafka/redpanda (redis streams are one key so will be
 // overloaded) distributed feature version and docker compose to stand up.
@@ -45,7 +44,7 @@ struct Cli {
   game_server_service: GameServerServiceTypes,
   /// Whether to use a local or redis based distributed user aggregator.
   #[arg(short = 'm', long, default_value = "local")]
-  user_aggregator_mode: UserAggregatorModeCli,
+  user_aggregator_mode: UserAggregatorMode,
   #[arg(short = 's', long, default_value = "60")]
   match_size: u32,
   /// Enable the tokio console (see <https://github.com/tokio-rs/console>)
@@ -150,7 +149,7 @@ fn setup_tracing(args: &Cli) -> Result<()> {
       .with_tracer(tracer)
       .with_filter(
         tracing_subscriber::filter::EnvFilter::try_from_default_env().unwrap_or(
-          tracing_subscriber::filter::EnvFilter::new("info,[tokio::]=off"),
+          tracing_subscriber::filter::EnvFilter::new("warn,[tokio::]=off"),
         ),
       );
 

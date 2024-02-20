@@ -12,6 +12,7 @@ tracing_tracy = ["dep:tracing-tracy"]
 tracing_pprof = ["dep:pprof"]
 
 [dependencies]
+async-trait = { workspace = true }
 clap = { workspace = true }
 color-eyre = { workspace = true }
 console-subscriber = { version = "0.2.0", features = ["parking_lot"] }

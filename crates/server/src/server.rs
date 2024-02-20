@@ -1,5 +1,5 @@
 use color_eyre::Result;
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 use tokio::{
   io::AsyncWriteExt,
   net::{TcpListener, TcpStream},
@@ -9,8 +9,9 @@ use tracing::{debug, error, info, instrument, Instrument};
 use wire_protocol::{GameServerInfo, MatchmakeProtocolRequest, MatchmakeProtocolResponse};
 
 use crate::{
-  game_server_service, matchmaker,
-  matchmaker::{JoinMatchRequestWithReply, UserAggregatorModeCli},
+  game_server_service,
+  matchmaker::{self, UserAggregatorMode},
+  matchmaking_queue_service::{InProcessMatchmakingQueueService, JoinMatchRequestWithReply},
   Cli,
 };
 
@@ -31,16 +32,19 @@ pub(crate) async fn run_server(args: &Cli) -> Result<()> {
     .name("server::listener")
     .spawn(listen_handler(listener, join_match_tx, cancel_request_tx))?;
 
-  let user_aggregator_mode = match args.user_aggregator_mode {
-    UserAggregatorModeCli::Local => matchmaker::UserAggregatorMode::Local,
+  let matchmaker_queue_service = match args.user_aggregator_mode {
+    UserAggregatorMode::Local => Arc::new(InProcessMatchmakingQueueService::new(
+      join_match_rx,
+      cancel_request_rx,
+      args.match_size,
+    )?),
   };
+
   let matchmaker = tokio::task::Builder::new()
     .name("matchmaker::supervisor")
     .spawn(matchmaker::matchmaker(
-      join_match_rx,
-      cancel_request_rx,
       game_server_service,
-      user_aggregator_mode,
+      matchmaker_queue_service,
       args.match_size,
     ))?;
 
