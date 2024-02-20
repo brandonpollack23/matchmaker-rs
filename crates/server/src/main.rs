@@ -25,6 +25,8 @@ mod server;
 // TODO MAIN GOALS: create a load test on GCP using pulumi/one shot jobs
 // TODO MAIN GOALS: kafka/redpanda (redis streams are one key so will be
 // overloaded) distributed feature version and docker compose to stand up.
+// TODO MAIN GOALS: SBMM
+// TODO MAIN GOALS: Generic SBMM that runs in web assembly runtime.
 
 #[cfg(feature = "tracing_pprof")]
 static PPROF_GUARD: OnceLock<ProfilerGuard<'static>> = OnceLock::new();
