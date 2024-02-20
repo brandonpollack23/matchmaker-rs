@@ -22,7 +22,7 @@ mod matchmaker;
 mod matchmaking_queue_service;
 mod server;
 
-// TODO MAIN GOALS: create a load test on GCP using pulumi
+// TODO MAIN GOALS: create a load test on GCP using pulumi/one shot jobs
 // TODO MAIN GOALS: kafka/redpanda (redis streams are one key so will be
 // overloaded) distributed feature version and docker compose to stand up.
 
