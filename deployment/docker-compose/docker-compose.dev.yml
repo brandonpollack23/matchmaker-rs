@@ -1,23 +1,5 @@
 version: '3.8'
 services:
-  # dd-agent:
-  #   image: gcr.io/datadoghq/agent:7
-  #   pid: host
-  #   environment:
-  #     - DD_API_KEY=${DD_API_KEY}
-  #     - DD_SITE="ap1.datadoghq.com"
-  #     - DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT="0.0.0.0:4317"
-  #     - DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT="0.0.0.0:4318"
-  #     - DD_LOGS_ENABLED=true
-  #     - DD_OTLP_CONFIG_LOGS_ENABLED=true
-  #   volumes:
-  #     - /var/run/docker.sock:/var/run/docker.sock
-  #     - /proc/:/host/proc:ro
-  #     - /sys/fs/cgroup:/host/sys/fs/cgroup:ro
-  #     - /var/lib/docker/containers:/var/lib/docker/containers:ro
-  #   ports:
-  #     - "4317:4317"
-  #     - "4318:4318"
   jaeger:
     image: jaegertracing/all-in-one:latest
     networks:

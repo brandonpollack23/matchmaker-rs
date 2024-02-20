@@ -1,25 +1,27 @@
 receivers:
-  jaeger:
-    protocols:
-      thrift_http:
-        endpoint: "0.0.0.0:14278"
-
   otlp:
     protocols:
       grpc:
-      http:
+
+  hostmetrics:
+    scrapers:
+      cpu:
+      load:
+      memory:
+      network:
 
 exporters:
-  prometheus:
-    endpoint: "0.0.0.0:8889"
+  debug:
+
+  prometheusremotewrite:
+    endpoint: prometheus:9411/api/prom/push
+    tls:
+      insecure: true
 
   otlp:
     endpoint: jaeger:4317
     tls:
       insecure: true
-
-connectors:
-  spanmetrics:
 
 processors:
   batch:
@@ -27,11 +29,11 @@ processors:
 service:
   pipelines:
     traces:
-      receivers: [otlp, jaeger]
+      receivers: [otlp]
       processors: [batch]
-      exporters: [spanmetrics, otlp]
-    # The exporter name in this pipeline must match the spanmetrics.metrics_exporter name.
-    # The receiver is just a dummy and never used; added to pass validation requiring at least one receiver in a pipeline.
-    metrics/spanmetrics:
-      receivers: [spanmetrics]
-      exporters: [prometheus]
+      exporters: [otlp]
+    metrics:
+      receivers: [otlp, hostmetrics]
+      processors: [batch]
+      # TODO NOW REMOVE DEBUG
+      exporters: [prometheusremotewrite, debug]
