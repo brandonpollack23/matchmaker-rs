@@ -1,16 +1,10 @@
-use std::{
-  fmt::{Debug},
-  sync::Arc,
-  time::Duration,
-};
+use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use clap::ValueEnum;
 use color_eyre::Result;
-use tokio::sync::{oneshot};
+use tokio::sync::oneshot;
 
 use tracing::{error, info, instrument, warn};
-
-
 
 use crate::{
   game_server_service::GameServerService,
@@ -83,7 +77,10 @@ async fn matchmaker_loop(
       continue;
     }
 
-    info!("Found enough users to match, creating game server...");
+    info!(
+      monotonic_counter.games_created_total = 1,
+      "Found enough users to match, creating game server..."
+    );
 
     for user in users.into_iter() {
       user
@@ -101,12 +98,15 @@ pub enum UserAggregatorMode {
 
 #[cfg(test)]
 mod tests {
-  use crate::matchmaking_queue_service::InProcessMatchmakingQueueService;
-
   use super::*;
 
+  use std::net::SocketAddr;
+
+  use tokio::sync::mpsc;
   use uuid::Uuid;
-  use wire_protocol::User;
+  use wire_protocol::{GameServerInfo, JoinMatchRequest, User};
+
+  use crate::matchmaking_queue_service::InProcessMatchmakingQueueService;
 
   #[allow(clippy::type_complexity)]
   fn setup_matchmaker() -> (
