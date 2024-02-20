@@ -1,18 +1,16 @@
 use std::{
-  collections::VecDeque,
-  fmt::{self, Debug, Formatter},
-  net::SocketAddr,
+  fmt::{Debug},
   sync::Arc,
   time::Duration,
 };
 
 use clap::ValueEnum;
 use color_eyre::Result;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{oneshot};
 
-use tracing::{debug, error, info, instrument, span, warn, Level};
+use tracing::{error, info, instrument, warn};
 
-use wire_protocol::{GameServerInfo, JoinMatchRequest};
+
 
 use crate::{
   game_server_service::GameServerService,
@@ -29,9 +27,9 @@ type MatchmakeResponder = oneshot::Sender<Option<Vec<JoinMatchRequestWithReply>>
 pub async fn matchmaker(
   game_server_service: Arc<dyn GameServerService>,
   matchmaking_queue_service: Arc<dyn MatchmakingQueueService>,
-  match_size: u32,
+  _match_size: u32,
 ) -> Result<()> {
-  let (request_game_tx, request_game_rx) = tokio::sync::mpsc::channel::<MatchmakeResponder>(1);
+  let (_request_game_tx, _request_game_rx) = tokio::sync::mpsc::channel::<MatchmakeResponder>(1);
 
   let matchmaker = tokio::task::Builder::new()
     .name("matchmaker::matchmaking_loop")

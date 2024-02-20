@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use clap::error;
+
 use color_eyre::{eyre::OptionExt, Result};
 use std::{
   collections::VecDeque,
@@ -12,7 +12,7 @@ use tokio::{
   time::Instant,
 };
 use tracing::Instrument;
-use tracing::{debug, error, info, span, trace, Level};
+use tracing::{error, info, span, trace, Level};
 use wire_protocol::{GameServerInfo, JoinMatchRequest};
 
 #[async_trait]
