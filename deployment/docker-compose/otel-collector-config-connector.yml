@@ -14,6 +14,8 @@ exporters:
   debug:
     verbosity: detailed
 
+  prometheus:
+    endpoint: "0.0.0.0:8889"
 
   prometheusremotewrite:
     endpoint: prometheus:9411/api/prom/push
@@ -37,5 +39,4 @@ service:
     metrics:
       receivers: [otlp, hostmetrics]
       # processors: [batch]
-      # TODO NOW REMOVE DEBUG
-      exporters: [prometheusremotewrite, debug]
+      exporters: [prometheus]
