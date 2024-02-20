@@ -70,14 +70,18 @@ pub(crate) async fn listen_handler(
     let cancel_request_tx = cancel_request_tx.clone();
     tokio::task::Builder::new()
       .name(&format!("socket::{addr:?}"))
-      // .instrument(span)
-      .spawn(async move {
-        if let Err(e) = handle_client_connection(socket, addr,  &join_match_tx, &cancel_request_tx).await {
-          error!("client connection error: {:?}", e);
-        }
+      .spawn(
+        async move {
+          if let Err(e) =
+            handle_client_connection(socket, addr, &join_match_tx, &cancel_request_tx).await
+          {
+            error!("client connection error: {:?}", e);
+          }
 
-        debug!("client connection closed: {:?}", addr);
-      }.instrument(span))?;
+          debug!("client connection closed: {:?}", addr);
+        }
+        .instrument(span),
+      )?;
   }
 }
 
