@@ -17,7 +17,7 @@ use uuid::Uuid;
 )]
 struct Cli {
   /// Number of simultaneous clients to simulate.
-  #[arg(short, long, default_value = "6000")]
+  #[arg(short, long, default_value = "30000")]
   number_of_clients: u32,
   #[arg(short, long, default_value = "127.0.0.1:1337")]
   server_address: String,
@@ -48,7 +48,7 @@ async fn main() {
   let dist = rand_distr::SkewNormal::new(200f32, 200f32, 0f32).unwrap();
   let mut spawned = 0;
   while spawned < ARGS.get().unwrap().number_of_clients {
-    let spawn_count = rng.gen_range(1..20);
+    let spawn_count = rng.gen_range(1..50);
     for _ in 0..spawn_count {
       tokio::spawn(simulate_client(&ARGS.get().unwrap().server_address));
     }

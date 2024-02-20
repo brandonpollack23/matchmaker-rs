@@ -121,7 +121,7 @@ pub(crate) async fn handle_client_connection(
       socket.shutdown().await.unwrap();
 
       info!(
-        monotonic.active_connections = -1,
+        counter.active_connections = -1,
         histogram.client_connection_duration_ms = client_start_time.elapsed().as_millis() as u64,
         "closed connection from: {:?}",
         socket_addr
