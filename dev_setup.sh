@@ -8,12 +8,18 @@ COMMAND=$1
 
 
 if [ -z "$COMMAND" ] || [ "$COMMAND" = "up" ]; then
-  docker-compose -f deployment/docker-compose/docker-compose.yml -f deployment/docker-compose/docker-compose.dev.yml up --build -d
+  docker-compose -f deployment/environments/dev_local/docker-compose.yml up --build -d
 
   echo "Refer to the following table for the running containers ports:"
   docker container ls --format "table {{.Names}}\t{{.Ports}}" -a
 fi
 
+if [ "$COMMAND" = "test" ]; then
+  docker-compose -f deployment/environments/test/docker-compose.yml up --build -d
+
+  echo "Set up to send traces to datadog"
+fi
+
 if [ "$COMMAND" = "down" ]; then
-  docker-compose -f deployment/docker-compose/docker-compose.yml -f deployment/docker-compose/docker-compose.dev.yml down
+  docker-compose -f deployment/environments/dev_local/docker-compose.yml -f deployment/environments/test/docker-compose.yml down
 fi

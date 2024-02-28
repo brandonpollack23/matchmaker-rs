@@ -23,7 +23,7 @@ pub trait MatchmakingQueueService: Sync + Send + Debug {
 #[derive(Debug)]
 pub struct InProcessMatchmakingQueueService {
   matches_rx: TokioMutex<mpsc::UnboundedReceiver<Vec<JoinMatchRequestWithReply>>>,
-  user_aggregator: tokio::task::JoinHandle<Result<()>>,
+  _user_aggregator: tokio::task::JoinHandle<Result<()>>,
 }
 
 impl InProcessMatchmakingQueueService {
@@ -44,7 +44,7 @@ impl InProcessMatchmakingQueueService {
 
     Ok(Self {
       matches_rx: TokioMutex::new(matches_rx),
-      user_aggregator,
+      _user_aggregator: user_aggregator,
     })
   }
 
