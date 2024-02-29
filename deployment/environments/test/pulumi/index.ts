@@ -4,6 +4,7 @@ import * as pulumi from "@pulumi/pulumi";
 
 // Import the program's configuration settings.
 const config = new pulumi.Config();
+const buildContainers = config.getBoolean("buildContainers") ?? true;
 const machineType = config.get("machineType") ?? "f1-micro";
 const osImage = config.get("osImage") ?? "cos-cloud/cos-stable";
 const instanceTag = config.get("instanceTag") ?? "webserver";
@@ -11,23 +12,27 @@ const servicePort = config.get("servicePort") ?? "1337";
 const datadogApiKey = config.getSecret("datadog-api-key");
 
 // Create all the necessary docker image resources.
-const matchmakerServerImage = new docker.Image("matchmaker-server-image", {
-  imageName: "docker.io/brandonpollack23/matchmaker-rs:latest",
-  build: {
-    platform: "linux/amd64",
-    context: "../../../../",
-    dockerfile: "../../../docker/matchmaker-rs.Dockerfile",
-  },
-});
+const matchmakerServerImage = buildContainers
+  ? new docker.Image("matchmaker-server-image", {
+      imageName: "docker.io/brandonpollack23/matchmaker-rs:latest",
+      build: {
+        platform: "linux/amd64",
+        context: "../../../../",
+        dockerfile: "../../../docker/matchmaker-rs.Dockerfile",
+      },
+    })
+  : undefined;
 
-const loadTestClientImage = new docker.Image("matchmaker-test-client-image", {
-  imageName: "docker.io/brandonpollack23/matchmaker-load-test-client:latest",
-  build: {
-    platform: "linux/amd64",
-    context: "../../../../",
-    dockerfile: "../../../docker/load_tester_client.Dockerfile",
-  },
-});
+const loadTestClientImage = buildContainers
+  ? new docker.Image("matchmaker-test-client-image", {
+      imageName: "docker.io/brandonpollack23/matchmaker-load-test-client:latest",
+      build: {
+        platform: "linux/amd64",
+        context: "../../../../",
+        dockerfile: "../../../docker/load_tester_client.Dockerfile",
+      },
+    })
+  : undefined;
 
 // Create a new network for the virtual machine.
 const network = new gcp.compute.Network("network", {
@@ -55,6 +60,9 @@ const firewall = new gcp.compute.Firewall("firewall", {
 });
 
 // Create the matchmaker server
+const serverDependencies = buildContainers
+  ? [firewall, matchmakerServerImage!!, loadTestClientImage!!]
+  : [firewall];
 const instance = new gcp.compute.Instance(
   "matchmaker-rs",
   {
@@ -90,18 +98,18 @@ spec:
     },
     tags: [instanceTag],
   },
-  { dependsOn: [firewall, matchmakerServerImage, loadTestClientImage] }
+  { dependsOn: serverDependencies }
 );
 
 const instanceIP = instance.networkInterfaces.apply((interfaces) => {
   return interfaces[0].accessConfigs![0].natIp;
 });
 
-export const matchmakerDockerImage = matchmakerServerImage.imageName;
+// export const matchmakerDockerImage = matchmakerServerImage.imageName;
 export const matchmakerDockerImageUrl = pulumi.interpolate`https://hub.docker.com/repository/docker/brandonpollack23/matchmaker-rs/general`;
 export const matchmakerInstanceName = instance.name;
 export const matchmakerServerIp = instanceIP;
 export const matchmakerServerURI = pulumi.interpolate`${instanceIP}:${servicePort}`;
 
-export const loadTestClientDockerImage = loadTestClientImage.imageName;
+// export const loadTestClientDockerImage = loadTestClientImage.imageName;
 export const loadTestClientDockerImageUrl = pulumi.interpolate`https://hub.docker.com/repository/docker/brandonpollack23/matchmaker-load-test-client/general`;

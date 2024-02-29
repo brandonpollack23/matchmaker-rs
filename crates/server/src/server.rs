@@ -17,7 +17,7 @@ use crate::{
 
 #[instrument]
 pub(crate) async fn run_server(args: &Cli) -> Result<()> {
-  let listener = TcpListener::bind(format!("127.0.0.1:{}", args.port))
+  let listener = TcpListener::bind(format!("0.0.0.0:{}", args.port))
     .await
     .unwrap();
 
