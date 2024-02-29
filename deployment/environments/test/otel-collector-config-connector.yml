@@ -18,7 +18,7 @@ exporters:
       site: ${env:DD_SITE}
       key: ${env:DD_API_KEY}
     traces:
-      trace_buffer: 100000
+      trace_buffer: 1000
 
 processors:
   batch:

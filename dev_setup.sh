@@ -15,9 +15,13 @@ if [ -z "$COMMAND" ] || [ "$COMMAND" = "up" ]; then
 fi
 
 if [ "$COMMAND" = "test" ]; then
-  docker-compose -f deployment/environments/test/docker-compose.yml up --build -d
+  DIR=$(getcwd)
+  cd deployment/environments/test/pulumi || exit
 
-  echo "Set up to send traces to datadog"
+  pulumi up -y
+
+  cd "$DIR" || exit
+  echo "Deployed to pulumi and setting up all traces/metrics to go to datadog"
 fi
 
 if [ "$COMMAND" = "down" ]; then

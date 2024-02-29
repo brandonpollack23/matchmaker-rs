@@ -1,0 +1,7 @@
+name: matchmaker-rs-loadtest
+runtime: nodejs
+description: A pulumi program to create containers, deploy them to VMs, monitor them, and gather their metrics to test matchmaker-rs
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: vm-gcp-typescript

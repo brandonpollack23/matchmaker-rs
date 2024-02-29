@@ -9,5 +9,7 @@ The metrics/traces are uploaded to Datadog to handle scaling.
 
 # TODO
 
-* Get this working locally to upload to Datadog.
-* Make the Pulumi project that does all this
+On Pulumi:
+
+* Create the containers for collector, matchmaker, and test clients
+* Create a VM for the tracing collector, the matchmaker, and N vms for the test clients.
