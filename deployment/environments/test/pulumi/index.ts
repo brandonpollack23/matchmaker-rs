@@ -82,7 +82,9 @@ const instance = new gcp.compute.Instance(
     - name: 'matchmaker-rs'
       image: brandonpollack23/matchmaker-rs:latest
       ports:
-        - containerPort: 1337  // Container port to expose
+        - containerPort: ${servicePort}
+          hostPort: ${servicePort}
+          protocol: TCP
   restartPolicy: Always`,
     },
     tags: [instanceTag],
