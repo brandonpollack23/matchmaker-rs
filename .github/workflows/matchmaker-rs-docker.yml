@@ -12,16 +12,18 @@ jobs:
 
     steps:
       - name: clone the repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Build and push matchmaker Docker image
         uses: docker/build-push-action@v5.1.0
         with:
           context: .
           file: deployment/docker/matchmaker-rs.Dockerfile
-          tags: matchmaker-rs:latest
+          push: true
+          tags: brandonpollack23/matchmaker-rs:latest
       - name: Build and push test client Docker image
         uses: docker/build-push-action@v5.1.0
         with:
           context: .
           file: deployment/docker/load_tester_client.Dockerfile
-          tags: matchmaker-load-test-client:latest
+          push: true
+          tags: brandonpollack23/matchmaker-load-test-client:latest

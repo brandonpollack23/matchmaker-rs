@@ -16,5 +16,4 @@ FROM rust:1.76.0 AS runtime
 
 COPY --from=builder /usr/local/cargo/bin/matchmaker-rs /usr/local/cargo/bin/matchmaker-rs
 
-RUN chmod +x /usr/local/cargo/bin/matchmaker-rs
 ENTRYPOINT ["/usr/local/cargo/bin/matchmaker-rs"]
