@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use clap::Parser;
-use color_eyre::Result;
+use color_eyre::{eyre::Context, Result};
 use rand::Rng;
 use rand_distr::Distribution;
 use tokio::{io::AsyncWriteExt, sync::OnceCell};
@@ -44,6 +44,8 @@ async fn main() {
   ARGS.set(Cli::parse()).unwrap();
   eprintln!("Running with args: {:#?}", ARGS.get().unwrap());
 
+  ensure_server_up(&ARGS.get().unwrap().server_address).unwrap();
+
   let mut rng = rand::thread_rng();
   let dist = rand_distr::SkewNormal::new(200f32, 200f32, 0f32).unwrap();
   let mut spawned = 0;
@@ -64,6 +66,11 @@ async fn main() {
 
   // Hack to keep the program running.
   tokio::time::sleep(Duration::from_secs(60)).await;
+}
+
+fn ensure_server_up(server_address: &str) -> Result<()> {
+  std::net::TcpStream::connect(server_address)?;
+  Ok(())
 }
 
 #[instrument]
