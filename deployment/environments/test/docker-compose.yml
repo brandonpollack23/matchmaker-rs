@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  otel_collector:
+    image: otel/opentelemetry-collector-contrib:${OTEL_IMAGE_TAG:-0.95.0}
+    volumes:
+      - ${OTEL_CONFIG_SRC:-./otel-collector-config-connector.yml}:/etc/otelcol/otel-collector-config.yml
+    command: --config /etc/otelcol/otel-collector-config.yml
+    environment:
+      - DD_SITE=us3.datadoghq.com
+      - DD_API_KEY=${DD_API_KEY}
+    ports:
+      - "4317:4317"
+      - "4318:4318"

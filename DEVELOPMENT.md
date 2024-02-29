@@ -6,7 +6,7 @@ Install cargo/rust and docker, and the redis cli
 
 ## Setup
 
-run: 
+run:
 
 ```bash
 ./dev_setup.sh
@@ -17,6 +17,15 @@ When you're done you can tear it all down with
 ```bash
 ./dev_setup.sh down
 ```
+
+There is also one for running in GCP test environment
+
+```bash
+./dev_setup.sh test
+```
+
+Down still works the same way (but this is based on pulumi).
+
 ## Tracing
 
 There are various tracing_* features to enable, give them a try.

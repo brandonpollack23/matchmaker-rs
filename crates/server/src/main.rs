@@ -38,7 +38,7 @@ static PPROF_GUARD: OnceLock<ProfilerGuard<'static>> = OnceLock::new();
   about = "Matchmaker server experiment, see the readme i guess if it exists."
 )]
 struct Cli {
-  #[arg(short = 'l', long, default_value = "info")]
+  #[arg(short = 'l', long, default_value = "warn")]
   print_log_level: tracing::Level,
   #[arg(short, long, default_value = "1337")]
   port: u16,
@@ -52,9 +52,9 @@ struct Cli {
   /// Enable the tokio console (see <https://github.com/tokio-rs/console>)
   #[arg(short, long, default_value = "false")]
   tokio_console: bool,
-  /// The oltp collector server (Probably Jaeger all in one...or a cloud something)
+  /// The otlp collector server (Probably Jaeger all in one...or a cloud something)
   #[arg(long, default_value = "http://localhost:4317")]
-  oltp_endpoint: String,
+  otlp_endpoint: String,
   #[cfg(feature = "tracing_flame")]
   #[arg(short, long, default_value = "./tracing.folded")]
   tracing_flame_output_file: String,
@@ -133,16 +133,22 @@ fn setup_tracing(args: &Cli) -> Result<()> {
   let tracing_subscriber = {
     let otlp_exporter = opentelemetry_otlp::new_exporter()
       .tonic()
-      .with_endpoint(&args.oltp_endpoint);
+      .with_endpoint(&args.otlp_endpoint);
     let tracer = opentelemetry_otlp::new_pipeline()
       .tracing()
       .with_exporter(otlp_exporter)
       .with_trace_config(
         trace::config().with_resource(
-          Resource::new(vec![KeyValue::new(
-            opentelemetry_semantic_conventions::resource::SERVICE_NAME,
-            "matchmaker-rs",
-          )])
+          Resource::new(vec![
+            KeyValue::new(
+              opentelemetry_semantic_conventions::resource::SERVICE_NAMESPACE,
+              "matchmaker-rs",
+            ),
+            KeyValue::new(
+              opentelemetry_semantic_conventions::resource::SERVICE_NAME,
+              "traces",
+            ),
+          ])
           .clone(),
         ),
       )
@@ -151,7 +157,7 @@ fn setup_tracing(args: &Cli) -> Result<()> {
       .with_tracer(tracer)
       .with_filter(
         tracing_subscriber::filter::EnvFilter::try_from_default_env().unwrap_or(
-          tracing_subscriber::filter::EnvFilter::new("warn,[tokio::]=off"),
+          tracing_subscriber::filter::EnvFilter::new("info,[tokio::]=off"),
         ),
       );
 
@@ -161,14 +167,20 @@ fn setup_tracing(args: &Cli) -> Result<()> {
     // https://docs.rs/tracing-opentelemetry/latest/tracing_opentelemetry/struct.MetricsLayer.html
     let otlp_exporter = opentelemetry_otlp::new_exporter()
       .tonic()
-      .with_endpoint(&args.oltp_endpoint);
+      .with_endpoint(&args.otlp_endpoint);
     let meter = opentelemetry_otlp::new_pipeline()
       .metrics(opentelemetry_sdk::runtime::Tokio)
       .with_exporter(otlp_exporter)
-      .with_resource(Resource::new(vec![KeyValue::new(
-        opentelemetry_semantic_conventions::resource::SERVICE_NAME,
-        "matchmaker-rs.metrics",
-      )]))
+      .with_resource(Resource::new(vec![
+        KeyValue::new(
+          opentelemetry_semantic_conventions::resource::SERVICE_NAMESPACE,
+          "matchmaker-rs",
+        ),
+        KeyValue::new(
+          opentelemetry_semantic_conventions::resource::SERVICE_NAME,
+          "metrics",
+        ),
+      ]))
       .build()?;
     let otel_metrics = tracing_opentelemetry::MetricsLayer::new(meter).with_filter(
       tracing_subscriber::filter::EnvFilter::try_from_default_env().unwrap_or(

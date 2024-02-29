@@ -1,0 +1,12 @@
+{
+    "name": "matchmaker-rs-loadtest",
+    "main": "index.ts",
+    "devDependencies": {
+        "@types/node": "^18"
+    },
+    "dependencies": {
+        "@pulumi/docker": "^4.5.1",
+        "@pulumi/gcp": "^7.0.0",
+        "@pulumi/pulumi": "^3.0.0"
+    }
+}
