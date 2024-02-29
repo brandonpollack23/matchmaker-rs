@@ -5,9 +5,9 @@ import * as pulumi from "@pulumi/pulumi";
 // Import the program's configuration settings.
 const config = new pulumi.Config();
 const machineType = config.get("machineType") ?? "f1-micro";
-const osImage = config.get("osImage") ?? "debian-11";
+const osImage = config.get("osImage") ?? "cos-cloud/cos-stable";
 const instanceTag = config.get("instanceTag") ?? "webserver";
-const servicePort = config.get("servicePort") ?? "80";
+const servicePort = config.get("servicePort") ?? "1337";
 const datadogApiKey = config.getSecret("datadog-api-key");
 
 // Create all the necessary docker image resources.
@@ -77,7 +77,8 @@ const instance = new gcp.compute.Instance(
     allowStoppingForUpdate: true,
     // https://www.pulumi.com/ai/answers/7JU7Bf3qufFVSHmxGbBg57/deploying-docker-containers-with-google-cloud-compute
     metadata: {
-      "gce-container-declaration": pulumi.interpolate`spec:
+      "gce-container-declaration": pulumi.interpolate`
+spec:
   containers:
     - name: 'matchmaker-rs'
       image: brandonpollack23/matchmaker-rs:latest
@@ -85,11 +86,11 @@ const instance = new gcp.compute.Instance(
         - containerPort: ${servicePort}
           hostPort: ${servicePort}
           protocol: TCP
-  restartPolicy: Always`,
+      restartPolicy: Always`,
     },
     tags: [instanceTag],
   },
-  { dependsOn: [firewall, matchmakerServerImage] }
+  { dependsOn: [firewall, matchmakerServerImage, loadTestClientImage] }
 );
 
 const instanceIP = instance.networkInterfaces.apply((interfaces) => {
