@@ -12,6 +12,8 @@ const instanceTag = config.get("instanceTag") ?? "webserver";
 const servicePort = config.get("servicePort") ?? "1337";
 const datadogApiKey = config.get("datadog-api-key");
 
+const otlpCollectorTag = "otlp-collector";
+
 // Create all the necessary docker image resources.
 const matchmakerServerImage = buildContainers
   ? new docker.Image("matchmaker-server-image", {
@@ -47,7 +49,7 @@ const subnet = new gcp.compute.Subnetwork("subnet", {
 });
 
 // Create a firewall allowing inbound access over ports 1337 (for matchmaker service) and 22 (for SSH).
-const firewall = new gcp.compute.Firewall("firewall", {
+const matchmakerFirewall = new gcp.compute.Firewall("matchmaker-firewall", {
   network: network.selfLink,
   allows: [
     {
@@ -58,6 +60,19 @@ const firewall = new gcp.compute.Firewall("firewall", {
   direction: "INGRESS",
   sourceRanges: ["0.0.0.0/0"],
   targetTags: [instanceTag],
+});
+
+const otlpFirewall = new gcp.compute.Firewall("otlp-firewall", {
+  network: network.selfLink,
+  allows: [
+    {
+      protocol: "tcp",
+      ports: ["22", "4317"],
+    },
+  ],
+  direction: "INGRESS",
+  sourceRanges: ["0.0.0.0/0", subnet.ipCidrRange],
+  targetTags: [otlpCollectorTag],
 });
 
 // Create the servers (matchmaker, otel, etc)
@@ -99,14 +114,14 @@ docker run -d \
 -v /home/chronos/otel-collector-config-connector.yml:/etc/otelcol/otel-collector-config.yml \
 otel/opentelemetry-collector-contrib:0.95.0 --config /etc/otelcol/otel-collector-config.yml
     `,
-    tags: [instanceTag],
+    tags: [otlpCollectorTag],
   },
-  { dependsOn: [firewall] }
+  { dependsOn: [otlpFirewall] }
 );
 
 const matchmakerDependencies = buildContainers
-  ? [firewall, otlpCollector, matchmakerServerImage!!, loadTestClientImage!!]
-  : [firewall, otlpCollector];
+  ? [matchmakerFirewall, otlpCollector, matchmakerServerImage!!, loadTestClientImage!!]
+  : [matchmakerFirewall, otlpCollector];
 const matchmakerRsServer = new gcp.compute.Instance(
   "matchmaker-rs",
   {
