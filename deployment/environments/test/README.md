@@ -9,4 +9,6 @@ The metrics/traces are uploaded to Datadog to handle scaling.
 
 # TODO
 
+* add an otel collector to matchmaker-rs vm to collect machine metrics to send to data dog (cpu/memory use).
+* Add matchmaking logic interface and make a test one that just simulates some delay to figure out how a user should be "ranked" and rank them all the same
 * Add N test load VMs and ramp it up to see how many requests per second we can handle.

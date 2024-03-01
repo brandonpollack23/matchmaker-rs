@@ -12,8 +12,6 @@ const instanceTag = config.get("instanceTag") ?? "webserver";
 const servicePort = config.get("servicePort") ?? "1337";
 const datadogApiKey = config.get("datadog-api-key");
 
-const otlpCollectorTag = "otlp-collector";
-
 // Create all the necessary docker image resources.
 const matchmakerServerImage = buildContainers
   ? new docker.Image("matchmaker-server-image", {
@@ -62,46 +60,31 @@ const matchmakerFirewall = new gcp.compute.Firewall("matchmaker-firewall", {
   targetTags: [instanceTag],
 });
 
-const otlpFirewall = new gcp.compute.Firewall("otlp-firewall", {
-  network: network.selfLink,
-  allows: [
-    {
-      protocol: "tcp",
-      ports: ["22", "4317"],
-    },
-  ],
-  direction: "INGRESS",
-  sourceRanges: ["0.0.0.0/0", subnet.ipCidrRange],
-  targetTags: [otlpCollectorTag],
-});
-
 // Create the servers (matchmaker, otel, etc)
 const otelCollectorConfig = fs
   .readFileSync("../otel-collector-config-connector.yml", "utf8")
   .replace(/`/g, "\\`");
 
-const otlpCollector = new gcp.compute.Instance(
-  "otel-collector",
-  {
-    name: "matchmaker-otel-collector",
-    machineType,
-    bootDisk: {
-      initializeParams: {
-        image: osImage,
-      },
+const otlpCollector = new gcp.compute.Instance("otel-collector", {
+  name: "matchmaker-otel-collector",
+  machineType,
+  bootDisk: {
+    initializeParams: {
+      image: osImage,
     },
-    networkInterfaces: [
-      {
-        network: network.id,
-        subnetwork: subnet.id,
-        accessConfigs: [{}],
-      },
-    ],
-    serviceAccount: {
-      scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+  },
+  networkInterfaces: [
+    {
+      network: network.id,
+      subnetwork: subnet.id,
+      accessConfigs: [{}],
     },
-    allowStoppingForUpdate: true,
-    metadataStartupScript: pulumi.interpolate`#!/bin/bash
+  ],
+  serviceAccount: {
+    scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+  },
+  allowStoppingForUpdate: true,
+  metadataStartupScript: pulumi.interpolate`#!/bin/bash
 cat << 'EOF' > /home/chronos/otel-collector-config-connector.yml
 ${otelCollectorConfig}
 EOF
@@ -114,10 +97,7 @@ docker run -d \
 -v /home/chronos/otel-collector-config-connector.yml:/etc/otelcol/otel-collector-config.yml \
 otel/opentelemetry-collector-contrib:0.95.0 --config /etc/otelcol/otel-collector-config.yml
     `,
-    tags: [otlpCollectorTag],
-  },
-  { dependsOn: [otlpFirewall] }
-);
+});
 
 const matchmakerDependencies = buildContainers
   ? [matchmakerFirewall, otlpCollector, matchmakerServerImage!!, loadTestClientImage!!]
@@ -156,7 +136,7 @@ spec:
       args:
         - '--otlp-endpoint'
         - http://${otlpCollector.networkInterfaces.apply(
-          (interfaces) => interfaces[0].accessConfigs![0].natIp
+          (interfaces) => interfaces[0].networkIp
         )}:4317
       restartPolicy: Always`,
     },
