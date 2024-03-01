@@ -9,7 +9,4 @@ The metrics/traces are uploaded to Datadog to handle scaling.
 
 # TODO
 
-On Pulumi:
-
-* Startup script doesnt seem to work, i last did it by scp'ing the config over manually
-* Create a VM for the tracing collector, the matchmaker, and N vms for the test clients.
+* Add N test load VMs and ramp it up to see how many requests per second we can handle.
