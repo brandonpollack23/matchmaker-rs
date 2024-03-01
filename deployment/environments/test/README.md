@@ -11,5 +11,5 @@ The metrics/traces are uploaded to Datadog to handle scaling.
 
 On Pulumi:
 
-* Create the containers for collector, matchmaker, and test clients
+* Startup script doesnt seem to work, i last did it by scp'ing the config over manually
 * Create a VM for the tracing collector, the matchmaker, and N vms for the test clients.
