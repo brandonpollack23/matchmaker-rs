@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use clap::Parser;
-use color_eyre::{eyre::Context, Result};
+use color_eyre::{Result};
 use rand::Rng;
 use rand_distr::Distribution;
 use tokio::{io::AsyncWriteExt, sync::OnceCell};

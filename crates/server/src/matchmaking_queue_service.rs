@@ -1,17 +1,20 @@
 use async_trait::async_trait;
 
 use color_eyre::{eyre::OptionExt, Result};
+use crypto::digest::Digest;
+use rand::Rng;
 use std::{
   collections::VecDeque,
   fmt::{self, Debug, Formatter},
   net::SocketAddr,
+  time::Duration,
 };
 use tokio::sync::Mutex as TokioMutex;
 use tokio::{
   sync::{mpsc, oneshot},
   time::Instant,
 };
-use tracing::Instrument;
+use tracing::{debug, Instrument};
 use tracing::{error, info, span, trace, Level};
 use wire_protocol::{GameServerInfo, JoinMatchRequest};
 
@@ -108,6 +111,8 @@ impl InProcessMatchmakingQueueService {
 #[async_trait]
 impl MatchmakingQueueService for InProcessMatchmakingQueueService {
   async fn retrieve_user_batch(&self) -> Result<Vec<JoinMatchRequestWithReply>> {
+    busy_work().await;
+
     self
       .matches_rx
       .lock()
@@ -131,3 +136,31 @@ impl Debug for JoinMatchRequestWithReply {
       .finish()
   }
 }
+
+#[cfg(feature = "in_memory_busy_work")]
+async fn busy_work() {
+  let start = Instant::now();
+  let mut sha = crypto::sha2::Sha256::new();
+
+  // Random time between 0 and 100 ms
+  let test_process_time = Duration::from_millis(rand::thread_rng().gen_range(0..100));
+  while start.elapsed() < test_process_time {
+    // Do some CPU work then yield.
+    // To do this a few random sha256 hash of inputs with length 1337 should suffice.
+    let num_times = rand::thread_rng().gen_range(0..10);
+    for _ in 0..num_times {
+      let mut one_three_three_seven_bytes = [0u8; 1337];
+      for i in one_three_three_seven_bytes.iter_mut() {
+        *i = rand::random();
+      }
+      sha.input(&one_three_three_seven_bytes);
+      let r = sha.result_str();
+      debug!("sha256: {}", r);
+      sha.reset();
+      tokio::task::yield_now().await;
+    }
+  }
+}
+
+#[cfg(not(feature = "in_memory_busy_work"))]
+async fn busy_work() {}

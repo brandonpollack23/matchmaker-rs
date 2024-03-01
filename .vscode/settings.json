@@ -4,6 +4,7 @@
     "matchmaker-rs/tracing_pprof",
     "matchmaker-rs/tracing_tracy",
     "matchmaker-rs/tracing_otel",
-    "matchmaker-rs/tracing_perfetto"
+    "matchmaker-rs/tracing_perfetto",
+    "matchmaker-rs/in_memory_busy_work"
   ]
 }

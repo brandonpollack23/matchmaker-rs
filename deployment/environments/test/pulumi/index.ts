@@ -99,6 +99,9 @@ otel/opentelemetry-collector-contrib:0.95.0 --config /etc/otelcol/otel-collector
     `,
 });
 
+const matchmakerMachineMetricsOtelCollectorConfig = fs
+  .readFileSync("../machine-metrics-only-otel-collector.yml", "utf8")
+  .replace(/`/g, "\\`");
 const matchmakerDependencies = buildContainers
   ? [matchmakerFirewall, otlpCollector, matchmakerServerImage!!, loadTestClientImage!!]
   : [matchmakerFirewall, otlpCollector];
@@ -141,6 +144,20 @@ spec:
       restartPolicy: Always`,
     },
     tags: [instanceTag],
+    // Startup script for otel collector on machine, this detects cpu/memory load etc.
+    metadataStartupScript: pulumi.interpolate`#!/bin/bash
+cat << 'EOF' > /home/chronos/otel-collector-config-connector.yml
+${matchmakerMachineMetricsOtelCollectorConfig}
+EOF
+
+docker run -d \
+--restart always \
+-p 4317:4317 -p 4318:4318 \
+-e DD_API_KEY=${datadogApiKey} \
+-e DD_SITE=us3.datadoghq.com \
+-v /home/chronos/otel-collector-config-connector.yml:/etc/otelcol/otel-collector-config.yml \
+otel/opentelemetry-collector-contrib:0.95.0 --config /etc/otelcol/otel-collector-config.yml
+    `,
   },
   { dependsOn: matchmakerDependencies }
 );

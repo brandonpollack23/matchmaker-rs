@@ -1,0 +1,31 @@
+receivers:
+  hostmetrics:
+    scrapers:
+      cpu:
+      load:
+      memory:
+      network:
+      process:
+
+exporters:
+  debug:
+
+  datadog:
+    api:
+      site: ${env:DD_SITE}
+      key: ${env:DD_API_KEY}
+    traces:
+      trace_buffer: 1000
+
+processors:
+  batch:
+    send_batch_max_size: 1000
+    send_batch_size: 100
+    timeout: 10s
+
+service:
+  pipelines:
+    metrics:
+      receivers: [hostmetrics]
+      processors: [batch]
+      exporters: [datadog]
