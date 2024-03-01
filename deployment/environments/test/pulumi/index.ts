@@ -60,31 +60,46 @@ const matchmakerFirewall = new gcp.compute.Firewall("matchmaker-firewall", {
   targetTags: [instanceTag],
 });
 
+const sshOnlyFirewall = new gcp.compute.Firewall("ssh-only-firewall", {
+  network: network.selfLink,
+  allows: [
+    {
+      protocol: "tcp",
+      ports: ["22"],
+    },
+  ],
+  direction: "INGRESS",
+  sourceRanges: ["0.0.0.0/0"],
+  targetTags: ["ssh-only"],
+});
+
 // Create the servers (matchmaker, otel, etc)
 const otelCollectorConfig = fs
   .readFileSync("../otel-collector-config-connector.yml", "utf8")
   .replace(/`/g, "\\`");
 
-const otlpCollector = new gcp.compute.Instance("otel-collector", {
-  name: "matchmaker-otel-collector",
-  machineType,
-  bootDisk: {
-    initializeParams: {
-      image: osImage,
+const otlpCollector = new gcp.compute.Instance(
+  "otel-collector",
+  {
+    name: "matchmaker-otel-collector",
+    machineType,
+    bootDisk: {
+      initializeParams: {
+        image: osImage,
+      },
     },
-  },
-  networkInterfaces: [
-    {
-      network: network.id,
-      subnetwork: subnet.id,
-      accessConfigs: [{}],
+    networkInterfaces: [
+      {
+        network: network.id,
+        subnetwork: subnet.id,
+        accessConfigs: [{}],
+      },
+    ],
+    serviceAccount: {
+      scopes: ["https://www.googleapis.com/auth/cloud-platform"],
     },
-  ],
-  serviceAccount: {
-    scopes: ["https://www.googleapis.com/auth/cloud-platform"],
-  },
-  allowStoppingForUpdate: true,
-  metadataStartupScript: pulumi.interpolate`#!/bin/bash
+    allowStoppingForUpdate: true,
+    metadataStartupScript: pulumi.interpolate`#!/bin/bash
 cat << 'EOF' > /home/chronos/otel-collector-config-connector.yml
 ${otelCollectorConfig}
 EOF
@@ -97,7 +112,10 @@ docker run -d \
 -v /home/chronos/otel-collector-config-connector.yml:/etc/otelcol/otel-collector-config.yml \
 otel/opentelemetry-collector-contrib:0.95.0 --config /etc/otelcol/otel-collector-config.yml
     `,
-});
+    tags: ["ssh-only"],
+  },
+  { dependsOn: [sshOnlyFirewall] }
+);
 
 const matchmakerMachineMetricsOtelCollectorConfig = fs
   .readFileSync("../machine-metrics-only-otel-collector.yml", "utf8")
@@ -108,6 +126,7 @@ const matchmakerDependencies = buildContainers
 const matchmakerRsServer = new gcp.compute.Instance(
   "matchmaker-rs",
   {
+    name: "matchmaker-rs-server",
     machineType,
     bootDisk: {
       initializeParams: {
