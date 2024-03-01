@@ -5,7 +5,7 @@ import * as fs from "fs";
 
 // Import the program's configuration settings.
 const config = new pulumi.Config();
-const buildContainers = config.getBoolean("buildContainers") ?? true;
+const buildContainers = config.getBoolean("buildContainers") ?? false;
 const machineType = config.get("machineType") ?? "f1-micro";
 const osImage = config.get("osImage") ?? "cos-cloud/cos-stable";
 const instanceTag = config.get("instanceTag") ?? "webserver";
@@ -86,20 +86,18 @@ const otlpCollector = new gcp.compute.Instance(
       scopes: ["https://www.googleapis.com/auth/cloud-platform"],
     },
     allowStoppingForUpdate: true,
-    // TODO this startup script does not seem to run.
-    metadataStartupScript: pulumi.interpolate`
-      #!/bin/bash
-      cat << 'EOF' > $HOME/otel-collector-config-connector.yml
-      ${otelCollectorConfig}
-      EOF
+    metadataStartupScript: pulumi.interpolate`#!/bin/bash
+cat << 'EOF' > /home/chronos/otel-collector-config-connector.yml
+${otelCollectorConfig}
+EOF
 
-      docker run -d \
-      --restart always \
-      -p 4317:4317 -p 4318:4318 \
-      -e DD_API_KEY=${datadogApiKey} \
-      -e DD_SITE=us3.datadoghq.com \
-      -v $(pwd)/otel-collector-config-connector.yml:/etc/otelcol/otel-collector-config.yml \
-      otel/opentelemetry-collector-contrib:0.95.0 --config /etc/otelcol/otel-collector-config.yml
+docker run -d \
+--restart always \
+-p 4317:4317 -p 4318:4318 \
+-e DD_API_KEY=${datadogApiKey} \
+-e DD_SITE=us3.datadoghq.com \
+-v /home/chronos/otel-collector-config-connector.yml:/etc/otelcol/otel-collector-config.yml \
+otel/opentelemetry-collector-contrib:0.95.0 --config /etc/otelcol/otel-collector-config.yml
     `,
     tags: [instanceTag],
   },
