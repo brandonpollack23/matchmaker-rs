@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["in_memory_busy_work", "tracing_otel"]
+default = ["tracing_otel"]
 tracing_flame = ["dep:tracing-flame"]
 tracing_otel = [
   "dep:opentelemetry",

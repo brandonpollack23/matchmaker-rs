@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use clap::Parser;
-use color_eyre::{Result};
+use color_eyre::Result;
 use rand::Rng;
 use rand_distr::Distribution;
 use tokio::{io::AsyncWriteExt, sync::OnceCell};
@@ -17,7 +17,7 @@ use uuid::Uuid;
 )]
 struct Cli {
   /// Number of simultaneous clients to simulate.
-  #[arg(short, long, default_value = "30000")]
+  #[arg(short, long, default_value = "100_000")]
   number_of_clients: u32,
   #[arg(short, long, default_value = "127.0.0.1:1337")]
   server_address: String,
@@ -47,25 +47,25 @@ async fn main() {
   ensure_server_up(&ARGS.get().unwrap().server_address).unwrap();
 
   let mut rng = rand::thread_rng();
-  let dist = rand_distr::SkewNormal::new(200f32, 200f32, 0f32).unwrap();
   let mut spawned = 0;
   while spawned < ARGS.get().unwrap().number_of_clients {
-    let spawn_count = rng.gen_range(1..50);
+    let spawn_count = rng.gen_range(1..1000);
     for _ in 0..spawn_count {
       tokio::spawn(simulate_client(&ARGS.get().unwrap().server_address));
     }
     spawned += spawn_count;
 
-    let sleep_time = dist.sample(&mut rng).max(0f32);
-    debug!(
-      "Spawned {} reqeuests, sleeping for {}ms",
-      spawn_count, sleep_time
-    );
-    tokio::time::sleep(Duration::from_millis(sleep_time as u64)).await;
+    // let dist = rand_distr::SkewNormal::new(200f32, 200f32, 0f32).unwrap();
+    // let sleep_time = dist.sample(&mut rng).max(0f32);
+    // debug!(
+    //   "Spawned {} reqeuests, sleeping for {}ms",
+    //   spawn_count, sleep_time
+    // );
+    // tokio::time::sleep(Duration::from_millis(sleep_time as u64)).await;
   }
 
   // Hack to keep the program running.
-  tokio::time::sleep(Duration::from_secs(60)).await;
+  tokio::time::sleep(Duration::from_secs(120)).await;
 }
 
 fn ensure_server_up(server_address: &str) -> Result<()> {
